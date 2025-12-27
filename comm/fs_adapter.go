@@ -15,13 +15,13 @@ type FileInfo struct {
 	IsDir   bool        `json:"is_dir"`
 }
 
-// IFsProvider defines the interface for filesystem operations
+// IFsAdapter defines the interface for filesystem operations
 // This interface provides flexibility to support different filesystem backends:
 // - OS filesystem (osfs)
 // - Embedded filesystem (embedfs)
 // - Web-based filesystem (webfs)
 // - Custom implementations
-type IFsProvider interface {
+type IFsAdapter interface {
 	// ReadFile reads the contents of a file and returns it as a byte slice
 	ReadFile(path string) ([]byte, error)
 

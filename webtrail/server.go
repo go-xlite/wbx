@@ -13,8 +13,9 @@ import (
 //
 // Example: Main server proxies /api/* to WebTrail -> WebTrail sees /users, /orders, etc.
 type WebTrail struct {
-	Mux      *mux.Router
-	Routes   *routes.Routes
+	Mux    *mux.Router
+	Routes *routes.Routes
+	// Note: The base path is NOT used in actual routing, only for helper methods
 	PathBase string // Optional base path for convenience (e.g., "/api" for documentation)
 	NotFound http.HandlerFunc
 }
@@ -22,18 +23,11 @@ type WebTrail struct {
 // NewWebtrail creates a new WebTrail instance with proper routing capabilities
 func NewWebtrail() *WebTrail {
 	wt := &WebTrail{
-		Mux: mux.NewRouter(),
+		Mux:      mux.NewRouter(),
+		PathBase: "",
 	}
 	wt.Routes = routes.NewRoutes(wt.Mux)
 	wt.NotFound = http.NotFound
-	return wt
-}
-
-// NewWebtrailWithBase creates a WebTrail with a base path (for documentation/clarity)
-// Note: The base path is NOT used in actual routing, only for helper methods
-func NewWebtrailWithBase(basePath string) *WebTrail {
-	wt := NewWebtrail()
-	wt.PathBase = basePath
 	return wt
 }
 

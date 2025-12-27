@@ -1,4 +1,4 @@
-package serverrole
+package handler_role
 
 import (
 	"net/http"
@@ -10,20 +10,36 @@ import (
 )
 
 // IServer is the interface that WebLite and WebTrail implement
-type IServer interface {
+type IHandler interface {
 	GetRoutes() *routes.Routes
 	GetMux() *mux.Router
 }
 
-type ServerRole struct {
-	Server      IServer
+type HandlerRole struct {
+	Handler     IHandler
 	CustomMimes map[string]string
 	PathPrefix  string
 	CORS        CORS
+	OnStart     func() error
+	OnStop      func() error
+}
+
+func (sr *HandlerRole) Start() error {
+	if sr.OnStart != nil {
+		return sr.OnStart()
+	}
+	return nil
+}
+
+func (sr *HandlerRole) Stop() error {
+	if sr.OnStop != nil {
+		return sr.OnStop()
+	}
+	return nil
 }
 
 type CORS struct {
-	sv          *ServerRole
+	sv          *HandlerRole
 	EnableCORS  bool
 	CORSOrigins []string
 }
@@ -65,8 +81,8 @@ func (c *CORS) ApplyCORS(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func NewServer() *ServerRole {
-	sr := &ServerRole{
+func NewHandler() *HandlerRole {
+	sr := &HandlerRole{
 		CustomMimes: make(map[string]string),
 		PathPrefix:  "",
 	}
@@ -77,7 +93,7 @@ func NewServer() *ServerRole {
 }
 
 // AddCustomMime adds a custom MIME type mapping
-func (sr *ServerRole) AddCustomMime(extension, mimeType string) *ServerRole {
+func (sr *HandlerRole) AddCustomMime(extension, mimeType string) *HandlerRole {
 	if sr.CustomMimes == nil {
 		sr.CustomMimes = make(map[string]string)
 	}
@@ -87,7 +103,7 @@ func (sr *ServerRole) AddCustomMime(extension, mimeType string) *ServerRole {
 
 // GetMimeType returns the MIME type for a file extension
 // Checks custom MIME types first, then falls back to standard types
-func (sr *ServerRole) GetMimeType(ext string) string {
+func (sr *HandlerRole) GetMimeType(ext string) string {
 	ext = strings.ToLower(ext)
 
 	// Check custom MIME types first
@@ -102,6 +118,19 @@ func (sr *ServerRole) GetMimeType(ext string) string {
 }
 
 // SetPathPrefix sets the base path prefix for CDN routes
-func (cs *ServerRole) SetPathPrefix(prefix string) {
-	cs.PathPrefix = prefix
+func (hr *HandlerRole) SetPathPrefix(prefix string) {
+	hr.PathPrefix = prefix
+}
+
+// Redirect creates a redirect from one path to another
+func (hr *HandlerRole) Redirect(fromPath, toPath string, permanent bool) {
+	fullPath := hr.PathPrefix + fromPath
+	statusCode := http.StatusFound
+	if permanent {
+		statusCode = http.StatusMovedPermanently
+	}
+
+	hr.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, toPath, statusCode)
+	})
 }

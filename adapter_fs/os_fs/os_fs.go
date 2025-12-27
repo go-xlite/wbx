@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	webFs "github.com/go-xlite/wbx/adapter_fs/web_fs"
 	"github.com/go-xlite/wbx/comm"
-	webFs "github.com/go-xlite/wbx/fs_provider/web_fs"
 )
 
 // OsFs provides filesystem operations using the OS filesystem

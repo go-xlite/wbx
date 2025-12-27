@@ -16,14 +16,15 @@ import (
 
 // WebLite represents a lightweight web server instance
 type WebLite struct {
-	Provider *WebLiteProvider
-	Name     string
-	Mux      *mux.Router
-	Routes   *routes.Routes
-	Port     string
-	BindAddr []string
-	SslCert  string
-	SslKey   string
+	Provider            *WebLiteProvider
+	Name                string
+	Mux                 *mux.Router
+	Routes              *routes.Routes
+	Port                string
+	BindAddr            []string
+	SslCert             string
+	SslKey              string
+	CloudFlareOptimized bool
 
 	// Raw SSL/TLS data (alternative to file paths)
 	sslCertData []byte
@@ -39,12 +40,13 @@ type WebLite struct {
 // NewWebLite creates a new WebLite instance with default configuration
 func NewWebLite(name string) *WebLite {
 	wl := &WebLite{
-		Name:     name,
-		Mux:      mux.NewRouter(),
-		Port:     "8080",
-		BindAddr: []string{"0.0.0.0", "::"}, // Default to dual-stack (IPv4 + IPv6)
-		servers:  make([]*http.Server, 0),
-		stopChan: make(chan struct{}),
+		Name:                name,
+		Mux:                 mux.NewRouter(),
+		Port:                "8080",
+		BindAddr:            []string{"0.0.0.0", "::"}, // Default to dual-stack (IPv4 + IPv6)
+		servers:             make([]*http.Server, 0),
+		stopChan:            make(chan struct{}),
+		CloudFlareOptimized: false,
 	}
 	wl.Routes = routes.NewRoutes(wl.Mux)
 	return wl

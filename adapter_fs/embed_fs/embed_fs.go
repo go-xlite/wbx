@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
+	webFs "github.com/go-xlite/wbx/adapter_fs/web_fs"
 	"github.com/go-xlite/wbx/comm"
-	webFs "github.com/go-xlite/wbx/fs_provider/web_fs"
 )
 
 // EmbedFS provides filesystem operations using Go's embedded filesystem
@@ -134,7 +134,7 @@ func (e *EmbedFS) makePath(filePath string) string {
 	if basePath == "" {
 		basePath = e.GetBasePath()
 	}
-	
+
 	if basePath == "" {
 		return strings.TrimPrefix(filePath, "/")
 	}
