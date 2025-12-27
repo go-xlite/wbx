@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proxy Test Console</title>
+    <link rel="stylesheet" href="/proxy-test/p/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔀 Reverse Proxy Test Console</h1>
+        
+        <div class="info-box">
+            <h3>Proxy Configuration</h3>
+            <div class="config-info">
+                <div class="config-item">
+                    <strong>Target:</strong>
+                    <span>https://file-drop.gtn.one:8080/xt21/</span>
+                </div>
+                <div class="config-item">
+                    <strong>Local Endpoint:</strong>
+                    <span id="proxy-endpoint">/proxy/</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="request-section">
+            <h3>Make Request</h3>
+            <div class="form-group">
+                <label for="path-input">Path (relative to target):</label>
+                <input type="text" id="path-input" value="" placeholder="e.g., index.html or leave empty for root">
+            </div>
+            <div class="form-group">
+                <label for="method-select">Method:</label>
+                <select id="method-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="HEAD">HEAD</option>
+                </select>
+            </div>
+            <div class="button-group">
+                <button id="send-request-btn">Send Request</button>
+                <button id="clear-btn">Clear Logs</button>
+            </div>
+        </div>
+
+        <div class="stats-box">
+            <h3>Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-label">Total Requests</div>
+                    <div class="stat-value" id="total-requests">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Successful</div>
+                    <div class="stat-value" id="successful-requests">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Failed</div>
+                    <div class="stat-value" id="failed-requests">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Last Status</div>
+                    <div class="stat-value" id="last-status">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="response-section">
+            <h3>Response</h3>
+            <div id="response-headers" class="response-headers"></div>
+            <div id="response-body" class="response-body"></div>
+        </div>
+
+        <div class="log-section">
+            <h3>Request Log</h3>
+            <div id="message-log" class="message-log"></div>
+        </div>
+
+        <div class="navigation">
+            <a href="/xt23/">← Home</a>
+            <a href="/xt23/ws-test/">WebSocket Test</a>
+            <a href="/xt23/sse-test/">SSE Test</a>
+            <a href="/xt23/stream-test/">Stream Test</a>
+            <a href="/xt23/proxy-test/">Proxy Test</a>
+        </div>
+    </div>
+
+    <script src="/proxy-test/p/app.js"></script>
+</body>
+</html>

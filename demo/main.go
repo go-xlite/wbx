@@ -13,10 +13,12 @@ import (
 	osfs "github.com/go-xlite/wbx/adapter_fs/os_fs"
 	"github.com/go-xlite/wbx/demo/app"
 	handlermedia "github.com/go-xlite/wbx/handler_media"
+	handlerproxy "github.com/go-xlite/wbx/handler_proxy"
 	handlersse "github.com/go-xlite/wbx/handler_sse"
 	handlerws "github.com/go-xlite/wbx/handler_ws"
 	"github.com/go-xlite/wbx/webcast"
 	"github.com/go-xlite/wbx/weblite"
+	"github.com/go-xlite/wbx/webproxy"
 	"github.com/go-xlite/wbx/websock"
 	"github.com/go-xlite/wbx/webstream"
 )
@@ -100,6 +102,16 @@ func main() {
 	// Create media handler (thin wrapper)
 	mediaHandler := handlermedia.NewMediaHandler(streamServer)
 
+	// === Webproxy (Reverse Proxy) ===
+	// Create webproxy server pointing to external service
+	proxyServer, err := webproxy.NewWebproxy("https://file-drop.gtn.one:8080/xt21/")
+	if err != nil {
+		log.Fatalf("Failed to create proxy server: %v", err)
+	}
+
+	// Create proxy handler (thin wrapper)
+	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
+
 	// Create websock server for WebSocket connections
 	wsServer := websock.NewWebsock()
 	server.GetRoutes().HandlePathPrefixFn("/xt23/ws/", func(w http.ResponseWriter, r *http.Request) {
@@ -136,6 +148,14 @@ func main() {
 		mediaHandler.HandleMedia()(w, r)
 	})
 
+	// Register proxy routes before static handler
+	proxyHandler.SetPathPrefix("/proxy")
+	server.GetRoutes().HandlePathPrefixFn("/xt23/proxy", func(w http.ResponseWriter, r *http.Request) {
+		// For weblite mode 0, we need to manually strip the prefix
+		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/proxy")
+		proxyHandler.HandleProxy()(w, r)
+	})
+
 	xappHandler.ServeStatic("/", embedAdapter)
 
 	// Create WebSocket handler
@@ -161,9 +181,11 @@ func main() {
 	log.Println("  - http://localhost:8080/xt23/ws-test/ (WebSocket test console)")
 	log.Println("  - http://localhost:8080/xt23/sse-test/ (SSE test console)")
 	log.Println("  - http://localhost:8080/xt23/stream-test/ (Media streaming test console)")
+	log.Println("  - http://localhost:8080/xt23/proxy-test/ (Reverse proxy test console)")
 	log.Println("  - http://localhost:8080/xt23/p/app.js (asset via virtual directory)")
 	log.Println("  - http://localhost:8080/xt23/sse/stream (SSE endpoint)")
 	log.Println("  - http://localhost:8080/xt23/stream/sharko_video.mp4 (Video stream endpoint)")
+	log.Println("  - http://localhost:8080/xt23/proxy/ (Reverse proxy to https://file-drop.gtn.one:8080/xt21/)")
 	log.Println("  - ws://localhost:8080/xt23/ws/connect (WebSocket endpoint)")
 	log.Println("  - http://localhost:8080/xt23/ws/manager.js (WebSocket manager script)")
 
