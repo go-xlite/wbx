@@ -47,7 +47,7 @@ func (cs *CdnServer) SetCaching(maxAge time.Duration, enableBrowser bool) *CdnSe
 func (cs *CdnServer) ServeFile(urlPath string, fsProvider comm.IFsProvider) {
 	fullPath := cs.PathPrefix + urlPath
 
-	cs.Server.Routes.HandlePathPrefixFunc(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	cs.Server.GetRoutes().HandlePathPrefixFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		relativePath := r.URL.Path
 		if relativePath == "" || relativePath == "/" {
 			http.NotFound(w, r)
@@ -72,7 +72,7 @@ func (cs *CdnServer) ServeFile(urlPath string, fsProvider comm.IFsProvider) {
 // ServeBytes serves raw bytes with specified MIME type
 func (cs *CdnServer) ServeBytes(urlPath string, data []byte, mimeType string) {
 	fullPath := cs.PathPrefix + urlPath
-	cs.Server.Routes.HandleFuncWithStatsFast(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	cs.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		cs.applyCacheHeaders(w, r)
 		w.Header().Set("Content-Type", mimeType)
 		w.Write(data)

@@ -5,11 +5,18 @@ import (
 	"strings"
 
 	"github.com/go-xlite/wbx/comm"
-	weblite "github.com/go-xlite/wbx/weblite"
+	"github.com/go-xlite/wbx/routes"
+	"github.com/gorilla/mux"
 )
 
+// IServer is the interface that WebLite and WebTrail implement
+type IServer interface {
+	GetRoutes() *routes.Routes
+	GetMux() *mux.Router
+}
+
 type ServerRole struct {
-	Server      *weblite.WebLite
+	Server      IServer
 	CustomMimes map[string]string
 	PathPrefix  string
 	CORS        CORS

@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-xlite/wbx/routes"
 	"github.com/gorilla/mux"
 )
 
@@ -18,12 +19,11 @@ type WebLite struct {
 	Provider *WebLiteProvider
 	Name     string
 	Mux      *mux.Router
-	Routes   *wlRoutes
+	Routes   *routes.Routes
 	Port     string
 	BindAddr []string
 	SslCert  string
 	SslKey   string
-	Stats    *wlStats
 
 	// Raw SSL/TLS data (alternative to file paths)
 	sslCertData []byte
@@ -46,13 +46,7 @@ func NewWebLite(name string) *WebLite {
 		servers:  make([]*http.Server, 0),
 		stopChan: make(chan struct{}),
 	}
-	wl.Routes = &wlRoutes{
-		wl: wl,
-	}
-	wl.Stats = &wlStats{
-		wl: wl,
-	}
-	wl.Stats.init()
+	wl.Routes = routes.NewRoutes(wl.Mux)
 	return wl
 }
 
@@ -142,9 +136,6 @@ func (wl *WebLite) Start() error {
 	wl.running = true
 	wl.mu.Unlock()
 
-	// Reset stats on start
-	wl.Stats.init()
-
 	defer func() {
 		wl.mu.Lock()
 		wl.running = false
@@ -172,65 +163,6 @@ func (wl *WebLite) Start() error {
 	// Return first error if any
 	for err := range errChan {
 		return err
-	}
-
-	return nil
-}
-
-// StartBackground starts the server in background mode (non-blocking)
-func (wl *WebLite) StartBackground() error {
-	wl.mu.Lock()
-	if wl.running {
-		wl.mu.Unlock()
-		return fmt.Errorf("server %s is already running", wl.Name)
-	}
-	wl.running = true
-	wl.mu.Unlock()
-
-	// Reset stats on start
-	wl.Stats.init()
-
-	// Track bind results
-	resultChan := make(chan error, len(wl.BindAddr))
-
-	// Start servers for all bind addresses
-	for _, addr := range wl.BindAddr {
-		go func(bindAddr string) {
-			if err := wl.startServer(bindAddr); err != nil && err != http.ErrServerClosed {
-				fmt.Printf("WebLite [%s] error on %s: %v\n", wl.Name, bindAddr, err)
-				resultChan <- err
-			} else {
-				resultChan <- nil
-			}
-		}(addr)
-	}
-
-	// Give servers time to start and check if at least one succeeded
-	time.Sleep(100 * time.Millisecond)
-
-	// Check if at least one bind succeeded
-	successCount := 0
-	errorCount := 0
-	for i := 0; i < len(wl.BindAddr); i++ {
-		select {
-		case err := <-resultChan:
-			if err == nil {
-				successCount++
-			} else {
-				errorCount++
-			}
-		case <-time.After(50 * time.Millisecond):
-			// Timeout waiting for result, assume success
-			successCount++
-		}
-	}
-
-	// If all binds failed, return error
-	if successCount == 0 && errorCount > 0 {
-		wl.mu.Lock()
-		wl.running = false
-		wl.mu.Unlock()
-		return fmt.Errorf("server %s failed to bind to any address", wl.Name)
 	}
 
 	return nil
@@ -381,204 +313,14 @@ func (wl *WebLite) GetAddr() []string {
 	return addrs
 }
 
-// Stats convenience methods
-
-// GetStats returns a snapshot of current statistics
-func (wl *WebLite) GetStats() StatsSnapshot {
-	return wl.Stats.Get()
+// GetRoutes returns the Routes instance
+func (wl *WebLite) GetRoutes() *routes.Routes {
+	return wl.Routes
 }
 
-// ResetStats clears all statistics
-func (wl *WebLite) ResetStats() {
-	wl.Stats.Reset()
-}
-
-// EnableDetailedStats enables detailed path and status code tracking
-// This has a small performance impact due to map updates under lock
-func (wl *WebLite) EnableDetailedStats() {
-	wl.Stats.SetDetailedTracking(true)
-}
-
-// DisableDetailedStats disables detailed tracking for maximum performance
-// Only basic counters (total requests, active, bytes) will be tracked
-func (wl *WebLite) DisableDetailedStats() {
-	wl.Stats.SetDetailedTracking(false)
-}
-
-// Routes wrapper type
-
-type wlRoutes struct {
-	wl *WebLite
-}
-
-// Handle registers a handler for the given pattern
-func (wlr *wlRoutes) Handle(pattern string, handler http.Handler) {
-	wlr.wl.Mux.Handle(pattern, handler)
-}
-
-// HandleFunc registers a handler function for the given pattern
-func (wlr *wlRoutes) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.HandleFunc(pattern, handler)
-}
-
-// HandlePathPrefix registers a handler for all paths under the given prefix
-// The prefix is automatically stripped from the request path before passing to the handler
-// Example: HandlePathPrefix("/static/", handler) will serve "/static/file.css" as "/file.css" to the handler
-func (wlr *wlRoutes) HandlePathPrefix(prefix string, handler http.Handler) {
-	wlr.wl.Mux.PathPrefix(prefix).Handler(http.StripPrefix(prefix, handler))
-}
-
-// HandlePathPrefixFunc registers a handler function for all paths under the given prefix
-// The prefix is automatically stripped from the request path before passing to the handler
-// Example: HandlePathPrefixFunc("/static/", handler) will serve "/static/file.css" as "/file.css" to the handler
-func (wlr *wlRoutes) HandlePathPrefixFunc(prefix string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.HandlerFunc(handler)))
-}
-
-// HandlePathPrefixH is a convenience method that accepts a handler function and converts it to http.Handler
-// This eliminates the need to wrap with http.HandlerFunc manually
-// Example: HandlePathPrefixH("/api/", myHandlerFunc) instead of HandlePathPrefix("/api/", http.HandlerFunc(myHandlerFunc))
-func (wlr *wlRoutes) HandlePathPrefixH(prefix string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.HandlerFunc(handler)))
-}
-
-// HandleH is a convenience method that accepts a handler function and converts it to http.Handler
-// This eliminates the need to wrap with http.HandlerFunc manually
-// Example: HandleH("/api/endpoint", myHandlerFunc) instead of Handle("/api/endpoint", http.HandlerFunc(myHandlerFunc))
-func (wlr *wlRoutes) HandleH(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.Handle(pattern, http.HandlerFunc(handler))
-}
-
-// GetRoutes returns all registered routes with their methods
-func (wlr *wlRoutes) GetRoutes() []map[string]string {
-	routes := []map[string]string{}
-
-	err := wlr.wl.Mux.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		pathTemplate, err := route.GetPathTemplate()
-		if err != nil {
-			// If GetPathTemplate fails, try GetPathRegexp
-			pathRegexp, _ := route.GetPathRegexp()
-			if pathRegexp != "" {
-				pathTemplate = pathRegexp
-			}
-		}
-
-		// Skip empty paths
-		if pathTemplate == "" {
-			return nil
-		}
-
-		methods, _ := route.GetMethods()
-
-		methodStr := "GET, POST, PUT, DELETE, PATCH, OPTIONS" // Default if no methods specified
-		if len(methods) > 0 {
-			methodStr = strings.Join(methods, ", ")
-		}
-
-		routes = append(routes, map[string]string{
-			"path":    pathTemplate,
-			"methods": methodStr,
-		})
-		return nil
-	})
-
-	// If Walk returns an error or no routes found, return empty slice
-	if err != nil || len(routes) == 0 {
-		return []map[string]string{}
-	}
-
-	return routes
-}
-
-// HandleWithStats registers a handler with automatic stats tracking
-func (wlr *wlRoutes) HandleWithStats(pattern string, handler http.Handler) {
-	wlr.wl.Mux.Handle(pattern, wlr.statsMiddleware(pattern, handler))
-}
-
-// HandleFuncWithStats registers a handler function with automatic stats tracking
-func (wlr *wlRoutes) HandleFuncWithStats(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.HandleFunc(pattern, handler).Handler(wlr.statsMiddleware(pattern, http.HandlerFunc(handler)))
-}
-
-// HandleWithStatsFast registers a handler with fast stats tracking (no path/code details)
-// Use this for high-throughput endpoints where detailed stats aren't needed
-func (wlr *wlRoutes) HandleWithStatsFast(pattern string, handler http.Handler) {
-	wlr.wl.Mux.Handle(pattern, wlr.statsFastMiddleware(handler))
-}
-
-// HandleFuncWithStatsFast registers a handler function with fast stats tracking
-func (wlr *wlRoutes) HandleFuncWithStatsFast(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	wlr.wl.Mux.HandleFunc(pattern, handler).Handler(wlr.statsFastMiddleware(http.HandlerFunc(handler)))
-}
-
-// statsMiddleware wraps a handler to track request statistics
-func (wlr *wlRoutes) statsMiddleware(pattern string, handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Record request start
-		wlr.wl.Stats.RecordRequest(pattern)
-
-		// Wrap response writer to capture status code and bytes
-		srw := &statsResponseWriter{
-			ResponseWriter: w,
-			statusCode:     200, // default status code
-		}
-
-		// Serve the request
-		handler.ServeHTTP(srw, r)
-
-		// Record response completion
-		wlr.wl.Stats.RecordResponse(srw.statusCode, srw.bytesWritten)
-	})
-}
-
-// statsFastMiddleware wraps a handler for ultra-fast stats (no detailed tracking)
-// Only tracks total requests, active requests, and bytes - maximum performance
-func (wlr *wlRoutes) statsFastMiddleware(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Fast atomic increment (no locks)
-		wlr.wl.Stats.RecordRequestFast()
-
-		// Minimal response wrapper for byte counting only
-		srw := &statsFastResponseWriter{
-			ResponseWriter: w,
-		}
-
-		// Serve the request
-		handler.ServeHTTP(srw, r)
-
-		// Fast atomic operations (no locks)
-		wlr.wl.Stats.RecordResponseFast(srw.bytesWritten)
-	})
-}
-
-// statsResponseWriter wraps http.ResponseWriter to capture response details
-type statsResponseWriter struct {
-	http.ResponseWriter
-	statusCode   int
-	bytesWritten uint64
-}
-
-func (w *statsResponseWriter) WriteHeader(statusCode int) {
-	w.statusCode = statusCode
-	w.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (w *statsResponseWriter) Write(b []byte) (int, error) {
-	n, err := w.ResponseWriter.Write(b)
-	w.bytesWritten += uint64(n)
-	return n, err
-}
-
-// statsFastResponseWriter is a lightweight wrapper that only counts bytes
-type statsFastResponseWriter struct {
-	http.ResponseWriter
-	bytesWritten uint64
-}
-
-func (w *statsFastResponseWriter) Write(b []byte) (int, error) {
-	n, err := w.ResponseWriter.Write(b)
-	w.bytesWritten += uint64(n)
-	return n, err
+// GetMux returns the mux.Router instance
+func (wl *WebLite) GetMux() *mux.Router {
+	return wl.Mux
 }
 
 // Helper functions for SetBindAddrsWithPorts

@@ -11,14 +11,13 @@ import (
 	wt "github.com/go-xlite/wbx/webtrail"
 )
 
-var WebLites = wl.NewWebLiteProvider()
+var WebLites = wl.Provider
 
 // Type aliases for easy access
 type WebLite = wl.WebLite
 type ApiServer = sa.ApiServer
 type CdnServer = sc.CdnServer
 type WebServer = sw.WebServer
-type StatsSnapshot = wl.StatsSnapshot
 
 type WebRock = wr.WebRock
 

@@ -90,11 +90,11 @@ func RecoveryWithHandler(handler func(http.ResponseWriter, *http.Request, any)) 
 }
 
 // RequestID generates a unique ID for each request
-func RequestID() Middleware {
+func RequestID(contextKey ContextKey) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			requestID := fmt.Sprintf("%d", time.Now().UnixNano())
-			r = SetInContext(r, RequestIDKey, requestID)
+			r = SetInContext(r, contextKey, requestID)
 			w.Header().Set("X-Request-ID", requestID)
 			next.ServeHTTP(w, r)
 		})

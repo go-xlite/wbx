@@ -41,7 +41,7 @@ func (as *ApiServer) SetCORS(enabled bool, origins ...string) *ApiServer {
 // HandleAPI registers an API handler with automatic JSON response handling and CORS
 func (as *ApiServer) HandleAPI(path string, handler func(w http.ResponseWriter, r *http.Request)) {
 	fullPath := as.PathPrefix + path
-	as.Server.Routes.HandleFuncWithStatsFast(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	as.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		// Apply CORS headers if enabled
 		as.ServerRole.CORS.ApplyCORS(w, r)
 

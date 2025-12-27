@@ -8,16 +8,10 @@ import (
 // ContextKey is a type for context keys to avoid collisions
 type ContextKey string
 
-const (
-	// RequestIDKey is the context key for request IDs
-	RequestIDKey ContextKey = "request_id"
-
-	// UserKey is the context key for user information
-	UserKey ContextKey = "user"
-
-	// AuthKey is the context key for authentication context
-	AuthKey ContextKey = "auth"
-)
+// NewContextKey creates a new context key with the given name
+func NewContextKey(name string) ContextKey {
+	return ContextKey(name)
+}
 
 // GetFromContext retrieves a value from the request context
 func GetFromContext(r *http.Request, key ContextKey) any {

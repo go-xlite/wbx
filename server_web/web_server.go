@@ -71,7 +71,7 @@ func (ws *WebServer) EnableSPAMode() *WebServer {
 func (ws *WebServer) ServeStatic(urlPath string, fsProvider comm.IFsProvider) {
 	fullPath := ws.PathPrefix + urlPath
 
-	ws.Server.Routes.HandlePathPrefixFunc(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathPrefixFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		filePath := r.URL.Path
 		if filePath == "" || filePath == "/" {
 			filePath = "index.html"
@@ -113,7 +113,7 @@ func (ws *WebServer) ServeSPA(indexPath string, fsProvider comm.IFsProvider) err
 		return fmt.Errorf("failed to read index file: %w", err)
 	}
 
-	ws.Server.Routes.HandleFuncWithStats(ws.PathPrefix, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathFn(ws.PathPrefix, func(w http.ResponseWriter, r *http.Request) {
 		// For SPA mode, serve index for all non-asset paths
 		if ws.EnableSPA && !strings.Contains(r.URL.Path, ".") {
 			if ws.SecurityHeaders {
@@ -163,7 +163,7 @@ func (ws *WebServer) ServeHTML(path, htmlPath string, fsProvider comm.IFsProvide
 	}
 
 	fullPath := ws.PathPrefix + path
-	ws.Server.Routes.HandleFuncWithStats(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		if ws.SecurityHeaders {
 			ws.applySecurityHeaders(w)
 		}
@@ -178,7 +178,7 @@ func (ws *WebServer) ServeHTML(path, htmlPath string, fsProvider comm.IFsProvide
 // RenderTemplate renders a template with the given data
 func (ws *WebServer) RenderTemplate(path, templateName string, dataFunc func(r *http.Request) any) {
 	fullPath := ws.PathPrefix + path
-	ws.Server.Routes.HandleFuncWithStats(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		if ws.SecurityHeaders {
 			ws.applySecurityHeaders(w)
 		}
@@ -200,7 +200,7 @@ func (ws *WebServer) RenderTemplate(path, templateName string, dataFunc func(r *
 // HandlePage handles a page request with custom logic
 func (ws *WebServer) HandlePage(path string, handler func(w http.ResponseWriter, r *http.Request)) {
 	fullPath := ws.PathPrefix + path
-	ws.Server.Routes.HandleFuncWithStats(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		if ws.SecurityHeaders {
 			ws.applySecurityHeaders(w)
 		}
@@ -216,7 +216,7 @@ func (ws *WebServer) Redirect(fromPath, toPath string, permanent bool) {
 		statusCode = http.StatusMovedPermanently
 	}
 
-	ws.Server.Routes.HandleFuncWithStatsFast(fullPath, func(w http.ResponseWriter, r *http.Request) {
+	ws.Server.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, toPath, statusCode)
 	})
 }

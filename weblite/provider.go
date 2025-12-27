@@ -12,6 +12,8 @@ func NewWebLiteProvider() *WebLiteProvider {
 	return ws
 }
 
+var Provider = NewWebLiteProvider()
+
 type wlServers struct {
 	wlp   *WebLiteProvider
 	Items map[string]*WebLite
