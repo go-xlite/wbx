@@ -198,10 +198,58 @@ func (wl *WebLite) startServer(bindAddr string) error {
 	keyData := wl.sslKeyData
 	certFile := wl.SslCert
 	keyFile := wl.SslKey
+	cloudFlareOptimized := wl.CloudFlareOptimized
 	wl.mu.Unlock()
 
-	fmt.Printf("WebLite [%s] starting on %s\n", wl.Name, addr)
+	fmt.Printf("WebLite [%s] starting on %s", wl.Name, addr)
+	if cloudFlareOptimized {
+		fmt.Printf(" (CloudFlare optimized)")
+	}
+	fmt.Println()
 
+	// If CloudFlare optimizations are enabled, create custom listener
+	if cloudFlareOptimized {
+		listener, err := wl.CreateCloudFlareListener("tcp", addr)
+		if err != nil {
+			return fmt.Errorf("failed to create CloudFlare listener: %w", err)
+		}
+		defer listener.Close()
+
+		// Configure TLS if raw certificate data is provided
+		if useTLSFromData {
+			cert, err := tls.X509KeyPair(certData, keyData)
+			if err != nil {
+				return fmt.Errorf("failed to parse certificate and key: %w", err)
+			}
+
+			server.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+
+			tlsListener := tls.NewListener(listener, server.TLSConfig)
+			return server.Serve(tlsListener)
+		}
+
+		// Use file paths if provided
+		if useTLSFromFiles {
+			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+			if err != nil {
+				return fmt.Errorf("failed to load certificate and key: %w", err)
+			}
+
+			server.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+
+			tlsListener := tls.NewListener(listener, server.TLSConfig)
+			return server.Serve(tlsListener)
+		}
+
+		// Start regular HTTP server with CloudFlare listener
+		return server.Serve(listener)
+	}
+
+	// Standard listener (no CloudFlare optimizations)
 	// Configure TLS if raw certificate data is provided
 	if useTLSFromData {
 		cert, err := tls.X509KeyPair(certData, keyData)
