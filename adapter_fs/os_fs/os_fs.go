@@ -17,7 +17,7 @@ type OsFs struct {
 }
 
 // NewOsFs creates a new OS filesystem provider
-func NewOsFs() *OsFs {
+func NewOsFsAdapter() *OsFs {
 	return &OsFs{
 		WebFs: webFs.NewWebFs(),
 	}

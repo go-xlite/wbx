@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Streaming Test - WBX Demo</title>
+    <link rel="stylesheet" href="/stream-test/p/styles.css">
+</head>
+<body>
+    <nav>
+        <a href="/">🏠 Home</a>
+        <a href="/home/">📄 Pages</a>
+        <a href="/ws-test/">🔌 WebSocket Test</a>
+        <a href="/sse-test/">📡 SSE Test</a>
+        <a href="/stream-test/">🎬 Stream Test</a>
+    </nav>
+
+    <h1>🎬 Media Streaming Test Console</h1>
+    <p>Test video and audio streaming with range request support.</p>
+
+    <div class="section">
+        <h2>📹 Video Player</h2>
+        <div class="player-container">
+            <video id="videoPlayer" controls>
+                <source id="videoSource" src="/stream/sharko_video.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="duration">00:00</div>
+                <div class="stat-label">Duration</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="currentTime">00:00</div>
+                <div class="stat-label">Current Time</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="buffered">0%</div>
+                <div class="stat-label">Buffered</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="playVideo()" class="success">▶️ Play</button>
+            <button onclick="pauseVideo()" class="danger">⏸️ Pause</button>
+            <button onclick="rewindVideo()">⏪ -10s</button>
+            <button onclick="forwardVideo()">⏩ +10s</button>
+            <button onclick="toggleMute()">🔇 Mute</button>
+        </div>
+
+        <h3>📋 Event Log</h3>
+        <div id="messages"></div>
+    </div>
+
+    <div class="section">
+        <h2>ℹ️ Configuration</h2>
+        <ul class="info-list">
+            <li><strong>Stream Endpoint:</strong> <code id="streamEndpoint">http://localhost:8080/xt23/stream/sharko_video.mp4</code></li>
+            <li><strong>PathPrefix:</strong> <code>/xt23</code></li>
+            <li><strong>Virtual Directory:</strong> <code>/p/</code></li>
+            <li><strong>Current Page:</strong> <code>dist/stream-test/index.html</code></li>
+            <li><strong>Range Requests:</strong> <code>Enabled</code></li>
+            <li><strong>Video File:</strong> <code>sharko_video.mp4</code></li>
+        </ul>
+    </div>
+
+    <script src="/stream-test/p/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Test - WBX Demo</title>
+    <link rel="stylesheet" href="/sse-test/p/styles.css">
+</head>
+<body>
+    <nav>
+        <a href="/">🏠 Home</a>
+        <a href="/home/">📄 Pages</a>
+        <a href="/ws-test/">🔌 WebSocket Test</a>
+        <a href="/sse-test/">📡 SSE Test</a>
+    </nav>
+
+    <h1>📡 Server-Sent Events (SSE) Test Console</h1>
+    <p>Test and monitor SSE connections in real-time with comprehensive debugging tools.</p>
+
+    <div class="section">
+        <h2>📡 Connection Status</h2>
+        <div id="sseStatus" class="sse-status disconnected">● Disconnected</div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="receivedCount">0</div>
+                <div class="stat-label">Messages Received</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="uptime">00:00:00</div>
+                <div class="stat-label">Connection Uptime</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="reconnects">0</div>
+                <div class="stat-label">Reconnection Attempts</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="connect()" id="connectBtn" class="success">📡 Connect</button>
+            <button onclick="disconnect()" id="disconnectBtn" class="danger" disabled>❌ Disconnect</button>
+            <button onclick="clearMessages()">🗑️ Clear Log</button>
+        </div>
+
+        <h3>📋 Message Log</h3>
+        <div id="messages"></div>
+    </div>
+
+    <div class="section">
+        <h2>ℹ️ Configuration</h2>
+        <ul class="info-list">
+            <li><strong>SSE Endpoint:</strong> <code id="sseEndpoint">http://localhost:8080/xt23/sse/stream</code></li>
+            <li><strong>PathPrefix:</strong> <code>/xt23</code></li>
+            <li><strong>Virtual Directory:</strong> <code>/p/</code></li>
+            <li><strong>Current Page:</strong> <code>dist/sse-test/index.html</code></li>
+            <li><strong>Auto-reconnect:</strong> <code>Enabled (5s delay)</code></li>
+        </ul>
+    </div>
+
+    <script src="/sse-test/p/app.js"></script>
+</body>
+</html>
