@@ -26,7 +26,7 @@ func NewWebtrail() *WebTrail {
 		Mux:      mux.NewRouter(),
 		PathBase: "",
 	}
-	wt.Routes = routes.NewRoutes(wt.Mux)
+	wt.Routes = routes.NewRoutes(wt.Mux, 1)
 	wt.NotFound = http.NotFound
 	return wt
 }

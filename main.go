@@ -1,7 +1,6 @@
 package wbx
 
 import (
-	"github.com/go-xlite/wbx/comm"
 	sa "github.com/go-xlite/wbx/handler_api"
 	sc "github.com/go-xlite/wbx/handler_cdn"
 	media "github.com/go-xlite/wbx/handler_media"
@@ -9,8 +8,8 @@ import (
 	rth "github.com/go-xlite/wbx/handler_root"
 	spa "github.com/go-xlite/wbx/handler_spa"
 	sse "github.com/go-xlite/wbx/handler_sse"
-	sw "github.com/go-xlite/wbx/handler_static"
 	ws "github.com/go-xlite/wbx/handler_ws"
+	xapp "github.com/go-xlite/wbx/handler_xapp"
 	hl1 "github.com/go-xlite/wbx/helpers"
 	wl "github.com/go-xlite/wbx/weblite"
 	wt "github.com/go-xlite/wbx/webtrail"
@@ -27,7 +26,7 @@ var NewWebTrail = wt.NewWebtrail
 // Type aliases for easy access
 type ApiHandler = sa.ApiHandler
 type CdnHandler = sc.CdnHandler
-type WebHandler = sw.WebHandler
+type XAppHandler = xapp.XAppHandler
 type SpaHandler = spa.SPAHandler
 type RootHandler = rth.RootHandler
 type SSEHandler = sse.SSEHandler
@@ -38,7 +37,7 @@ type MediaHandler = media.MediaHandler
 // Constructor functions
 var NewApiHandler = sa.NewApiHandler
 var NewCdnHandler = sc.NewCdnHandler
-var NewWebHandler = sw.NewWebHandler
+var NewXAppHandler = xapp.NewXAppHandler
 var NewSpaHandler = spa.NewSPAHandler
 var NewRootHandler = rth.NewRootHandler
 var NewSSEHandler = sse.NewSSEHandler
@@ -47,10 +46,13 @@ var NewProxyHandler = pxy.NewProxyHandler
 var NewMediaHandler = media.NewMediaHandler
 
 // Utility functions
-var GetMimeType = comm.GetMimeType
 var WriteJSON = hl1.Helpers.WriteJSON
-var WriteHTML = hl1.Helpers.WriteHTMLfromText
-var WriteHTMLBytes = hl1.Helpers.WriteHTMLfromBytes
+var WriteHTMLText = hl1.Helpers.WriteHTMLText
+var WriteHTMLBytes = hl1.Helpers.WriteHTMLBytes
+var WriteJsBytes = hl1.Helpers.WriteJsBytes
+var WriteJsText = hl1.Helpers.WriteJsText
+var WriteCssBytes = hl1.Helpers.WriteCssBytes
+var WriteCssText = hl1.Helpers.WriteCssText
 
 type helpers struct {
 	*hl1.XHelpers

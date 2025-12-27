@@ -34,8 +34,10 @@ type MediaInfo struct {
 
 // NewMediaHandler creates a new media handler
 func NewMediaHandler(handler handler_role.IHandler, mediaDir string) *MediaHandler {
+	handlerRole := handler_role.NewHandler()
+	handlerRole.SetPathPrefix("/media")
 	return &MediaHandler{
-		HandlerRole:   &handler_role.HandlerRole{Handler: handler, PathPrefix: "/media"},
+		HandlerRole:   handlerRole,
 		MediaDir:      mediaDir,
 		BufferSize:    32 * 1024, // 32KB buffer for streaming
 		EnableCaching: true,
@@ -226,7 +228,7 @@ func (mh *MediaHandler) serveRangeRequest(w http.ResponseWriter, r *http.Request
 func (mh *MediaHandler) HandleMedia() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Extract file path from URL
-		filePath := strings.TrimPrefix(r.URL.Path, mh.PathPrefix)
+		filePath := strings.TrimPrefix(r.URL.Path, mh.PathPrefix.Get())
 		filePath = strings.TrimPrefix(filePath, "/")
 
 		if filePath == "" {
@@ -240,7 +242,7 @@ func (mh *MediaHandler) HandleMedia() http.HandlerFunc {
 
 // RegisterRoutes registers media serving routes
 func (mh *MediaHandler) RegisterRoutes(pathPrefix string) {
-	mh.PathPrefix = pathPrefix
+	mh.SetPathPrefix(pathPrefix)
 	mh.Handler.GetRoutes().HandlePathPrefixFn(pathPrefix, mh.HandleMedia())
 }
 

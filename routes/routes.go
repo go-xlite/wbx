@@ -9,13 +9,20 @@ import (
 
 // Routes provides standardized routing methods for mux.Router
 type Routes struct {
-	Mux *mux.Router
+	Mux  *mux.Router
+	mode int // If 1, strips prefix before passing to handler (webtrail mode). If 0, passes full path (weblite mode)
 }
 
 // NewRoutes creates a new Routes instance
-func NewRoutes(mux *mux.Router) *Routes {
-	return &Routes{Mux: mux}
+func NewRoutes(mux *mux.Router, mode int) *Routes {
+	return &Routes{
+		Mux:  mux,
+		mode: mode, // Default to weblite mode (no stripping)
+	}
 }
+
+// SetStripPrefix sets whether to strip prefix from paths before passing to handlers
+// Use true for webtrail mode, false for weblite mode (default)
 
 // HandlePathH registers an http.Handler for the exact path match
 func (r *Routes) HandlePathH(pattern string, handler http.Handler) {
@@ -65,7 +72,14 @@ func (r *Routes) normalizePrefix(prefix string) string {
 
 func (r *Routes) handlePathPrefixWithMethod(prefix string, handler http.Handler, methods ...string) {
 	prefix = r.normalizePrefix(prefix)
-	route := r.Mux.PathPrefix(prefix).Handler(http.StripPrefix(prefix, handler))
+	var route *mux.Route
+	if r.mode == 1 {
+		// Webtrail mode: strip prefix before passing to handler
+		route = r.Mux.PathPrefix(prefix).Handler(http.StripPrefix(prefix, handler))
+	} else {
+		// Weblite mode: pass full path to handler
+		route = r.Mux.PathPrefix(prefix).Handler(handler)
+	}
 	if len(methods) > 0 {
 		route.Methods(methods...)
 	}

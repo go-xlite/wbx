@@ -14,6 +14,224 @@ import (
 	"github.com/gorilla/mux"
 )
 
+type DomainValidator struct {
+	AllowedDomains []string // If empty, accepts all domains. Supports wildcards: *.example.com, abc-*.example.com
+	mu             sync.RWMutex
+}
+
+// NewDomainValidator creates a new domain validator
+func NewDomainValidator() *DomainValidator {
+	return &DomainValidator{
+		AllowedDomains: []string{},
+	}
+}
+
+// SetAllowedDomains sets the list of allowed domains with wildcard support
+func (dv *DomainValidator) SetAllowedDomains(domains ...string) {
+	dv.mu.Lock()
+	defer dv.mu.Unlock()
+	dv.AllowedDomains = domains
+}
+
+// AddAllowedDomain adds a single domain to the allowed list
+func (dv *DomainValidator) AddAllowedDomain(domain string) {
+	dv.mu.Lock()
+	defer dv.mu.Unlock()
+	dv.AllowedDomains = append(dv.AllowedDomains, domain)
+}
+
+// IsAllowed checks if a domain is allowed based on AllowedDomains patterns
+func (dv *DomainValidator) IsAllowed(domain string) bool {
+	dv.mu.RLock()
+	defer dv.mu.RUnlock()
+
+	// If no domains specified, allow all
+	if len(dv.AllowedDomains) == 0 {
+		return true
+	}
+
+	// Strip port from domain if present
+	if colonIdx := strings.Index(domain, ":"); colonIdx != -1 {
+		domain = domain[:colonIdx]
+	}
+
+	// Check against allowed patterns
+	for _, pattern := range dv.AllowedDomains {
+		if matchWildcardDomain(pattern, domain) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Middleware creates a middleware function for domain validation
+func (dv *DomainValidator) Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !dv.IsAllowed(r.Host) {
+			http.Error(w, "Domain not allowed", http.StatusForbidden)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// IsEnabled returns true if domain validation is enabled (has allowed domains configured)
+func (dv *DomainValidator) IsEnabled() bool {
+	dv.mu.RLock()
+	defer dv.mu.RUnlock()
+	return len(dv.AllowedDomains) > 0
+}
+
+type SSL struct {
+	CertFilePath string
+	KeyFilePath  string
+	// Raw SSL/TLS data (alternative to file paths)
+	CertData []byte
+	KeyData  []byte
+	// Multi-domain certificate support
+	Certificates map[string]*tls.Certificate // domain -> certificate
+	mu           sync.RWMutex
+}
+
+// SetFromFiles configures SSL/TLS using file paths (single certificate for all domains)
+func (s *SSL) SetFromFiles(certFile, keyFile string) {
+	s.CertFilePath = certFile
+	s.KeyFilePath = keyFile
+	s.CertData = nil
+	s.KeyData = nil
+}
+
+// AddCertificateForDomain adds a certificate for a specific domain
+func (s *SSL) AddCertificateForDomain(domain, certFile, keyFile string) error {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return fmt.Errorf("failed to load certificate for domain %s: %w", domain, err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Certificates == nil {
+		s.Certificates = make(map[string]*tls.Certificate)
+	}
+	s.Certificates[domain] = &cert
+	return nil
+}
+
+// AddCertificateForDomainFromData adds a certificate for a specific domain from raw data
+func (s *SSL) AddCertificateForDomainFromData(domain string, certData, keyData []byte) error {
+	cert, err := tls.X509KeyPair(certData, keyData)
+	if err != nil {
+		return fmt.Errorf("failed to parse certificate for domain %s: %w", domain, err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Certificates == nil {
+		s.Certificates = make(map[string]*tls.Certificate)
+	}
+	s.Certificates[domain] = &cert
+	return nil
+}
+
+// SetFromData configures SSL/TLS using raw certificate and key data
+func (s *SSL) SetFromData(certData, keyData []byte) {
+	s.CertData = certData
+	s.KeyData = keyData
+	s.CertFilePath = ""
+	s.KeyFilePath = ""
+}
+
+// SetFromText configures SSL/TLS using raw certificate and key text
+func (s *SSL) SetFromText(certText, keyText string) {
+	s.SetFromData([]byte(certText), []byte(keyText))
+}
+
+// IsConfigured returns true if SSL is configured (either from files or data)
+func (s *SSL) IsConfigured() bool {
+	return s.HasData() || s.HasFiles()
+}
+
+// HasData returns true if SSL is configured from raw data
+func (s *SSL) HasData() bool {
+	return len(s.CertData) > 0 && len(s.KeyData) > 0
+}
+
+// HasFiles returns true if SSL is configured from file paths
+func (s *SSL) HasFiles() bool {
+	return s.CertFilePath != "" && s.KeyFilePath != ""
+}
+
+// GetTLSConfig creates and returns a TLS configuration with SNI support
+func (s *SSL) GetTLSConfig() (*tls.Config, error) {
+	s.mu.RLock()
+	hasDomainCerts := len(s.Certificates) > 0
+	s.mu.RUnlock()
+
+	// If we have domain-specific certificates, use SNI
+	if hasDomainCerts {
+		config := &tls.Config{
+			GetCertificate: func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				s.mu.RLock()
+				defer s.mu.RUnlock()
+
+				// Try exact match first
+				if cert, ok := s.Certificates[hello.ServerName]; ok {
+					return cert, nil
+				}
+
+				// Try wildcard match
+				for domain, cert := range s.Certificates {
+					if matchWildcardDomain(domain, hello.ServerName) {
+						return cert, nil
+					}
+				}
+
+				// Fall back to default certificate if available
+				if s.HasData() {
+					cert, err := tls.X509KeyPair(s.CertData, s.KeyData)
+					if err == nil {
+						return &cert, nil
+					}
+				}
+
+				if s.HasFiles() {
+					cert, err := tls.LoadX509KeyPair(s.CertFilePath, s.KeyFilePath)
+					if err == nil {
+						return &cert, nil
+					}
+				}
+
+				return nil, fmt.Errorf("no certificate found for %s", hello.ServerName)
+			},
+		}
+		return config, nil
+	}
+
+	// Single certificate configuration
+	if s.HasData() {
+		cert, err := tls.X509KeyPair(s.CertData, s.KeyData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse certificate and key: %w", err)
+		}
+		return &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}, nil
+	}
+
+	if s.HasFiles() {
+		cert, err := tls.LoadX509KeyPair(s.CertFilePath, s.KeyFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load certificate and key: %w", err)
+		}
+		return &tls.Config{
+			Certificates: []tls.Certificate{cert},
+		}, nil
+	}
+
+	return nil, fmt.Errorf("SSL not configured")
+}
+
 // WebLite represents a lightweight web server instance
 type WebLite struct {
 	Provider            *WebLiteProvider
@@ -22,19 +240,14 @@ type WebLite struct {
 	Routes              *routes.Routes
 	Port                string
 	BindAddr            []string
-	SslCert             string
-	SslKey              string
+	SSL                 *SSL
 	CloudFlareOptimized bool
-
-	// Raw SSL/TLS data (alternative to file paths)
-	sslCertData []byte
-	sslKeyData  []byte
+	DomainValidator     *DomainValidator
 
 	// Server management
-	servers  []*http.Server
-	running  bool
-	mu       sync.RWMutex
-	stopChan chan struct{}
+	servers []*http.Server
+	running bool
+	mu      sync.RWMutex
 }
 
 // NewWebLite creates a new WebLite instance with default configuration
@@ -45,10 +258,11 @@ func NewWebLite(name string) *WebLite {
 		Port:                "8080",
 		BindAddr:            []string{"0.0.0.0", "::"}, // Default to dual-stack (IPv4 + IPv6)
 		servers:             make([]*http.Server, 0),
-		stopChan:            make(chan struct{}),
 		CloudFlareOptimized: false,
+		SSL:                 &SSL{},
+		DomainValidator:     NewDomainValidator(),
 	}
-	wl.Routes = routes.NewRoutes(wl.Mux)
+	wl.Routes = routes.NewRoutes(wl.Mux, 0)
 	return wl
 }
 
@@ -90,33 +304,6 @@ func (wl *WebLite) SetBindAddrsWithPorts(defaultPort string, addrs ...string) *W
 	wl.Port = "" // Empty port means addresses include their own ports
 	wl.BindAddr = filtered
 	return wl
-}
-
-// SetSSL configures SSL/TLS for the server using file paths
-func (wl *WebLite) SetSSL(certFile, keyFile string) *WebLite {
-	wl.mu.Lock()
-	defer wl.mu.Unlock()
-	wl.SslCert = certFile
-	wl.SslKey = keyFile
-	wl.sslCertData = nil
-	wl.sslKeyData = nil
-	return wl
-}
-
-// SetSSLFromData configures SSL/TLS for the server using raw certificate and key data
-func (wl *WebLite) SetSSLFromData(certData, keyData []byte) *WebLite {
-	wl.mu.Lock()
-	defer wl.mu.Unlock()
-	wl.sslCertData = certData
-	wl.sslKeyData = keyData
-	wl.SslCert = ""
-	wl.SslKey = ""
-	return wl
-}
-
-// SetSSLFromText configures SSL/TLS for the server using raw certificate and key text
-func (wl *WebLite) SetSSLFromText(certText, keyText string) *WebLite {
-	return wl.SetSSLFromData([]byte(certText), []byte(keyText))
 }
 
 // IsRunning returns whether the server is currently running
@@ -183,21 +370,20 @@ func (wl *WebLite) startServer(bindAddr string) error {
 		addr = net.JoinHostPort(bindAddr, wl.Port)
 	}
 
+	// Wrap handler with domain validation if needed
+	handler := http.Handler(wl.Mux)
+	if wl.DomainValidator.IsEnabled() {
+		handler = wl.DomainValidator.Middleware(handler)
+	}
+
 	server := &http.Server{
 		Addr:    addr,
-		Handler: wl.Mux,
+		Handler: handler,
 	}
 
 	wl.mu.Lock()
 	wl.servers = append(wl.servers, server)
-
-	// Check if SSL is configured via raw data
-	useTLSFromData := len(wl.sslCertData) > 0 && len(wl.sslKeyData) > 0
-	useTLSFromFiles := wl.SslCert != "" && wl.SslKey != ""
-	certData := wl.sslCertData
-	keyData := wl.sslKeyData
-	certFile := wl.SslCert
-	keyFile := wl.SslKey
+	sslConfigured := wl.SSL.IsConfigured()
 	cloudFlareOptimized := wl.CloudFlareOptimized
 	wl.mu.Unlock()
 
@@ -215,32 +401,14 @@ func (wl *WebLite) startServer(bindAddr string) error {
 		}
 		defer listener.Close()
 
-		// Configure TLS if raw certificate data is provided
-		if useTLSFromData {
-			cert, err := tls.X509KeyPair(certData, keyData)
+		// Configure TLS if SSL is configured
+		if sslConfigured {
+			tlsConfig, err := wl.SSL.GetTLSConfig()
 			if err != nil {
-				return fmt.Errorf("failed to parse certificate and key: %w", err)
+				return err
 			}
 
-			server.TLSConfig = &tls.Config{
-				Certificates: []tls.Certificate{cert},
-			}
-
-			tlsListener := tls.NewListener(listener, server.TLSConfig)
-			return server.Serve(tlsListener)
-		}
-
-		// Use file paths if provided
-		if useTLSFromFiles {
-			cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-			if err != nil {
-				return fmt.Errorf("failed to load certificate and key: %w", err)
-			}
-
-			server.TLSConfig = &tls.Config{
-				Certificates: []tls.Certificate{cert},
-			}
-
+			server.TLSConfig = tlsConfig
 			tlsListener := tls.NewListener(listener, server.TLSConfig)
 			return server.Serve(tlsListener)
 		}
@@ -250,24 +418,22 @@ func (wl *WebLite) startServer(bindAddr string) error {
 	}
 
 	// Standard listener (no CloudFlare optimizations)
-	// Configure TLS if raw certificate data is provided
-	if useTLSFromData {
-		cert, err := tls.X509KeyPair(certData, keyData)
-		if err != nil {
-			return fmt.Errorf("failed to parse certificate and key: %w", err)
+	// Configure TLS if SSL is configured
+	if sslConfigured {
+		if wl.SSL.HasData() {
+			// Use raw data - must set TLSConfig
+			tlsConfig, err := wl.SSL.GetTLSConfig()
+			if err != nil {
+				return err
+			}
+			server.TLSConfig = tlsConfig
+			return server.ListenAndServeTLS("", "")
 		}
 
-		server.TLSConfig = &tls.Config{
-			Certificates: []tls.Certificate{cert},
+		// Use file paths
+		if wl.SSL.HasFiles() {
+			return server.ListenAndServeTLS(wl.SSL.CertFilePath, wl.SSL.KeyFilePath)
 		}
-
-		// Start TLS server with empty cert/key paths since we're using TLSConfig
-		return server.ListenAndServeTLS("", "")
-	}
-
-	// Use file paths if provided
-	if useTLSFromFiles {
-		return server.ListenAndServeTLS(certFile, keyFile)
 	}
 
 	// Start regular HTTP server
@@ -304,9 +470,6 @@ func (wl *WebLite) Stop() error {
 	wl.running = false
 	wl.mu.Unlock()
 
-	close(wl.stopChan)
-	wl.stopChan = make(chan struct{})
-
 	if len(errors) > 0 {
 		return fmt.Errorf("errors stopping server: %v", errors)
 	}
@@ -335,8 +498,6 @@ func (wl *WebLite) Close() error {
 
 	wl.servers = make([]*http.Server, 0)
 	wl.running = false
-	close(wl.stopChan)
-	wl.stopChan = make(chan struct{})
 
 	if len(errors) > 0 {
 		return fmt.Errorf("errors closing server: %v", errors)
@@ -487,4 +648,103 @@ func filterRedundantAddrs(addrs []string) []string {
 	}
 
 	return result
+}
+
+// matchWildcardDomain checks if a domain matches a wildcard pattern
+// Supports patterns like:
+// - *.example.com (matches any.example.com but not example.com)
+// - abc-*.example.com (matches abc-xyz.example.com)
+// - example.com (exact match)
+func matchWildcardDomain(pattern, domain string) bool {
+	// Exact match
+	if pattern == domain {
+		return true
+	}
+
+	// No wildcard, no match
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Convert wildcard pattern to segments
+	patternParts := strings.Split(pattern, ".")
+	domainParts := strings.Split(domain, ".")
+
+	// Must have same number of segments
+	if len(patternParts) != len(domainParts) {
+		return false
+	}
+
+	// Match each segment
+	for i := 0; i < len(patternParts); i++ {
+		patternSegment := patternParts[i]
+		domainSegment := domainParts[i]
+
+		if !matchWildcardSegment(patternSegment, domainSegment) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchWildcardSegment matches a single segment with wildcard support
+// Supports patterns like: *, abc-*, *-xyz, abc-*-xyz
+func matchWildcardSegment(pattern, segment string) bool {
+	// Exact match or pure wildcard
+	if pattern == segment || pattern == "*" {
+		return true
+	}
+
+	// No wildcard, no match
+	if !strings.Contains(pattern, "*") {
+		return false
+	}
+
+	// Split by wildcard and match parts
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 2 {
+		prefix := parts[0]
+		suffix := parts[1]
+
+		// Check if segment starts with prefix and ends with suffix
+		if len(segment) < len(prefix)+len(suffix) {
+			return false
+		}
+
+		if prefix != "" && !strings.HasPrefix(segment, prefix) {
+			return false
+		}
+
+		if suffix != "" && !strings.HasSuffix(segment, suffix) {
+			return false
+		}
+
+		return true
+	}
+
+	// For more complex patterns with multiple wildcards, use simple approach
+	// Convert pattern to a regex-like match
+	pos := 0
+	for i, part := range parts {
+		if i > 0 {
+			// Skip any characters for the wildcard
+			if part == "" {
+				continue
+			}
+			idx := strings.Index(segment[pos:], part)
+			if idx == -1 {
+				return false
+			}
+			pos += idx + len(part)
+		} else {
+			// First part must match at the beginning
+			if !strings.HasPrefix(segment, part) {
+				return false
+			}
+			pos = len(part)
+		}
+	}
+
+	return true
 }

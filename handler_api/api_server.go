@@ -17,11 +17,8 @@ type ApiHandler struct {
 
 // NewApiHandler creates a new API handler with sensible defaults
 func NewApiHandler(wl handler_role.IHandler) *ApiHandler {
-	sr := &handler_role.HandlerRole{
-		Handler:     wl,
-		PathPrefix:  "/api",
-		CustomMimes: make(map[string]string),
-	}
+	sr := handler_role.NewHandler()
+	sr.SetPathPrefix("/api")
 	sr.CORS.EnableCORS = true
 	sr.CORS.CORSOrigins = []string{"*"}
 
@@ -33,7 +30,7 @@ func NewApiHandler(wl handler_role.IHandler) *ApiHandler {
 
 // HandleAPI registers an API handler with automatic JSON response handling and CORS
 func (as *ApiHandler) HandleAPI(path string, handler func(w http.ResponseWriter, r *http.Request)) {
-	fullPath := as.PathPrefix + path
+	fullPath := as.PathPrefix.Get() + path
 	as.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		// Apply CORS headers if enabled
 		as.HandlerRole.CORS.ApplyCORS(w, r)

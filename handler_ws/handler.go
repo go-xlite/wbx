@@ -1,16 +1,11 @@
 package handlerws
 
 import (
-	"embed"
-	"html/template"
 	"net/http"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/handler_ws/worker"
+	"github.com/go-xlite/wbx/websock"
 )
-
-//go:embed client/*.html client/*.js
-var clientFiles embed.FS
 
 // WebSocketStats represents statistics for a WebSocket handler
 type WebSocketStats struct {
@@ -29,7 +24,7 @@ type WebSocketStats struct {
 type WsHandler struct {
 	*handler_role.HandlerRole
 	Name         string
-	WsWorker     *worker.WsWorker
+	websock      *websock.Websock
 	Route        string
 	IframeRoute  string
 	WorkerRoute  string
@@ -41,11 +36,14 @@ type WsHandler struct {
 }
 
 // NewWsHandler creates a new WebSocket handler
-func NewWsHandler(handler handler_role.IHandler, name string) *WsHandler {
+func NewWsHandler(ws *websock.Websock, name string) *WsHandler {
+	handlerRole := handler_role.NewHandler()
+	handlerRole.Handler = ws
+
 	wsh := &WsHandler{
-		HandlerRole:  &handler_role.HandlerRole{Handler: handler, PathPrefix: "/ws"},
+		HandlerRole:  handlerRole,
 		Name:         name,
-		WsWorker:     worker.NewWorker(name),
+		websock:      ws,
 		Route:        "/connect",
 		IframeRoute:  "/iframe",
 		WorkerRoute:  "/worker.js",
@@ -77,127 +75,30 @@ func (wsh *WsHandler) SetUserInfoExtractor(fn func(r *http.Request) (username st
 
 // Run starts the WebSocket handler and registers all routes
 func (wsh *WsHandler) Run() {
-	// Start the worker
-	go wsh.WsWorker.Run()
+	// Start the websock server
+	go wsh.websock.Run()
 
 	// Register message handler if provided
 	if wsh.OnMessage != nil {
-		wsh.WsWorker.OnMessage(func(client *worker.WsClient, message []byte) {
+		wsh.websock.OnMessage(func(client *websock.WsClient, message []byte) {
 			wsh.OnMessage(client.ID, client.UserID, client.Username, message)
 		})
 	}
 
-	// Register WebSocket connection route
-	wsh.Handler.GetRoutes().HandlePathFn(wsh.PathPrefix+wsh.Route, wsh.handleWebSocket)
-
-	// Register iframe route
-	wsh.Handler.GetRoutes().HandlePathFn(wsh.PathPrefix+wsh.IframeRoute, wsh.handleIframe)
-
-	// Register worker script route
-	wsh.Handler.GetRoutes().HandlePathFn(wsh.PathPrefix+wsh.WorkerRoute, wsh.handleWorkerScript)
-
-	// Register manager script route
-	wsh.Handler.GetRoutes().HandlePathFn(wsh.PathPrefix+wsh.ManagerRoute, wsh.handleManagerScript)
-}
-
-// handleWebSocket handles WebSocket connection requests
-func (wsh *WsHandler) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	// Extract user information
-	username, userID := wsh.GetUserInfo(r)
-
-	// Get connection ID from query params
-	connID := r.URL.Query().Get("connid")
-
-	// Check if this is a cleanup request
-	cleanup := r.URL.Query().Get("cleanup")
-	if cleanup == "1" {
-		wsh.WsWorker.HandleCleanupConnection(w, r, username, userID, connID)
-		return
-	}
-
-	// Handle the regular WebSocket connection
-	wsh.WsWorker.HandleConnection(w, r, username, userID, connID)
-
-	// Call OnConnect callback if set
-	if wsh.OnConnect != nil {
-		wsh.OnConnect(connID, userID, username)
-	}
-}
-
-// handleIframe serves the iframe HTML for fallback connections
-func (wsh *WsHandler) handleIframe(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	data := map[string]interface{}{
-		"Route": wsh.PathPrefix + wsh.Route,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/iframe.html")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl, err := template.New("iframe").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl.Execute(w, data)
-}
-
-// handleWorkerScript serves the SharedWorker JavaScript
-func (wsh *WsHandler) handleWorkerScript(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-
-	data := map[string]interface{}{
-		"Route": wsh.PathPrefix + wsh.Route,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/ browser-shared-worker.js")
-	if err != nil {
-		http.Error(w, "Script not found", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl, err := template.New("worker").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl.Execute(w, data)
-}
-
-// handleManagerScript serves the WebSocket manager JavaScript
-func (wsh *WsHandler) handleManagerScript(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-
-	data := map[string]interface{}{
-		"Route":         wsh.PathPrefix + wsh.Route,
-		"WsWorkerRoute": wsh.PathPrefix + wsh.WorkerRoute,
-		"IframeRoute":   wsh.PathPrefix + wsh.IframeRoute,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/browser-ws-manager.js")
-	if err != nil {
-		http.Error(w, "Script not found", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl, err := template.New("manager").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl.Execute(w, data)
+	// Register all client routes through websock server
+	wsh.websock.RegisterClientRoutes(
+		wsh.PathPrefix.Get(),
+		wsh.Route,
+		wsh.IframeRoute,
+		wsh.WorkerRoute,
+		wsh.ManagerRoute,
+		wsh.GetUserInfo,
+	)
 }
 
 // GetStats returns statistics for this WebSocket handler
 func (wsh *WsHandler) GetStats() WebSocketStats {
-	workerStats := wsh.WsWorker.GetStats()
+	workerStats := wsh.websock.GetStats()
 
 	return WebSocketStats{
 		Name:               wsh.Name,
@@ -205,24 +106,24 @@ func (wsh *WsHandler) GetStats() WebSocketStats {
 		TotalConnections:   workerStats.TotalConnections,
 		MessagesSent:       workerStats.MessagesSent,
 		MessagesReceived:   workerStats.MessagesReceived,
-		Route:              wsh.PathPrefix + wsh.Route,
-		IframeRoute:        wsh.PathPrefix + wsh.IframeRoute,
-		WorkerRoute:        wsh.PathPrefix + wsh.WorkerRoute,
-		ManagerRoute:       wsh.PathPrefix + wsh.ManagerRoute,
+		Route:              wsh.PathPrefix.Get() + wsh.Route,
+		IframeRoute:        wsh.PathPrefix.Get() + wsh.IframeRoute,
+		WorkerRoute:        wsh.PathPrefix.Get() + wsh.WorkerRoute,
+		ManagerRoute:       wsh.PathPrefix.Get() + wsh.ManagerRoute,
 	}
 }
 
 // SendToUser sends a message to all connections of a specific user
 func (wsh *WsHandler) SendToUser(userID int64, message []byte) {
-	wsh.WsWorker.SendToUser(userID, message)
+	wsh.websock.SendToUser(userID, message)
 }
 
 // SendToClient sends a message to a specific client connection
 func (wsh *WsHandler) SendToClient(clientID string, message []byte) bool {
-	return wsh.WsWorker.SendToClient(clientID, message)
+	return wsh.websock.SendToClient(clientID, message)
 }
 
 // Broadcast sends a message to all connected clients
 func (wsh *WsHandler) Broadcast(message []byte) {
-	wsh.WsWorker.Broadcast(message)
+	wsh.websock.Broadcast(message)
 }

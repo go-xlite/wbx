@@ -21,12 +21,10 @@ type CdnHandler struct {
 
 // NewCdnHandlerFromWebLite wraps an existing WebLite with CdnHandler functionality
 func NewCdnHandler(wl handler_role.IHandler) *CdnHandler {
+	handlerRole := handler_role.NewHandler()
+	handlerRole.SetPathPrefix("/cdn")
 	return &CdnHandler{
-		HandlerRole: &handler_role.HandlerRole{
-			Handler:     wl,
-			CustomMimes: make(map[string]string),
-			PathPrefix:  "/cdn",
-		},
+		HandlerRole:   handlerRole,
 		CacheMaxAge:   24 * time.Hour,
 		EnableBrowser: true,
 		EnableETags:   true,
@@ -42,7 +40,7 @@ func (cs *CdnHandler) SetCaching(maxAge time.Duration, enableBrowser bool) *CdnH
 
 // ServeFile serves files from a filesystem provider
 func (cs *CdnHandler) ServeFile(urlPath string, fsProvider comm.IFsAdapter) {
-	fullPath := cs.PathPrefix + urlPath
+	fullPath := cs.PathPrefix.Get() + urlPath
 
 	cs.Handler.GetRoutes().HandlePathPrefixFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		relativePath := r.URL.Path
@@ -59,7 +57,7 @@ func (cs *CdnHandler) ServeFile(urlPath string, fsProvider comm.IFsAdapter) {
 		}
 
 		// Apply caching and MIME type
-		cs.applyCacheHeaders(w, r)
+		cs.applyCacheHeaders(w)
 		ext := filepath.Ext(relativePath)
 		w.Header().Set("Content-Type", cs.HandlerRole.GetMimeType(ext))
 		w.Write(data)
@@ -68,16 +66,16 @@ func (cs *CdnHandler) ServeFile(urlPath string, fsProvider comm.IFsAdapter) {
 
 // ServeBytes serves raw bytes with specified MIME type
 func (cs *CdnHandler) ServeBytes(urlPath string, data []byte, mimeType string) {
-	fullPath := cs.PathPrefix + urlPath
+	fullPath := cs.PathPrefix.Get() + urlPath
 	cs.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
-		cs.applyCacheHeaders(w, r)
+		cs.applyCacheHeaders(w)
 		w.Header().Set("Content-Type", mimeType)
 		w.Write(data)
 	})
 }
 
 // applyCacheHeaders applies appropriate caching headers
-func (cs *CdnHandler) applyCacheHeaders(w http.ResponseWriter, r *http.Request) {
+func (cs *CdnHandler) applyCacheHeaders(w http.ResponseWriter) {
 
 	if cs.EnableBrowser {
 		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(cs.CacheMaxAge.Seconds())))

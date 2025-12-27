@@ -14,25 +14,25 @@ import (
 // EmbedFS provides filesystem operations using Go's embedded filesystem
 type EmbedFS struct {
 	*webFs.WebFs
-	fs        *embed.FS
-	EmbedPath string
+	fs          *embed.FS
+	EmbedPrefix string
 }
 
 // NewEmbedFS creates a new embedded filesystem provider
 func NewEmbedFS(embedFS *embed.FS) *EmbedFS {
 	return &EmbedFS{
-		WebFs:     webFs.NewWebFsReadOnly(), // Embedded FS is always read-only
-		fs:        embedFS,
-		EmbedPath: "",
+		WebFs:       webFs.NewWebFsReadOnly(), // Embedded FS is always read-only
+		fs:          embedFS,
+		EmbedPrefix: "",
 	}
 }
 
 // NewEmbedFSWithBasePath creates a new embedded filesystem provider with a base path
 func NewEmbedFSWithBasePath(embedFS *embed.FS, basePath string) *EmbedFS {
 	efs := &EmbedFS{
-		WebFs:     webFs.NewWebFsReadOnly(),
-		fs:        embedFS,
-		EmbedPath: basePath,
+		WebFs:       webFs.NewWebFsReadOnly(),
+		fs:          embedFS,
+		EmbedPrefix: basePath,
 	}
 	efs.SetBasePath(basePath)
 	return efs
@@ -129,8 +129,8 @@ func (e *EmbedFS) IsDir(path string) bool {
 // makePath constructs the full path by combining EmbedPath and relative path
 // Uses forward slashes as required by embed.FS
 func (e *EmbedFS) makePath(filePath string) string {
-	// Use EmbedPath if set, otherwise use BasePath from WebFs
-	basePath := e.EmbedPath
+	// Use EmbedPrefix if set, otherwise use BasePath from WebFs
+	basePath := e.EmbedPrefix
 	if basePath == "" {
 		basePath = e.GetBasePath()
 	}

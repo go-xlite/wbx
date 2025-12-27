@@ -22,8 +22,10 @@ type SPAHandler struct {
 
 // NewSPAHandler creates a SPAHandler wrapper around an existing handler instance
 func NewSPAHandler(handler handler_role.IHandler) *SPAHandler {
+	handlerRole := &handler_role.HandlerRole{Handler: handler}
+	handlerRole.SetPathPrefix("/")
 	return &SPAHandler{
-		HandlerRole:     &handler_role.HandlerRole{Handler: handler, PathPrefix: "/"},
+		HandlerRole:     handlerRole,
 		IndexFile:       "index.html",
 		SecurityHeaders: true,
 		CacheMaxAge:     1 * time.Hour,
@@ -61,7 +63,7 @@ func (sh *SPAHandler) ServeSPAWithIndex(indexPath string, fsProvider comm.IFsAda
 		return fmt.Errorf("failed to read index file: %w", err)
 	}
 
-	sh.Handler.GetRoutes().HandlePathPrefixFn(sh.PathPrefix, func(w http.ResponseWriter, r *http.Request) {
+	sh.Handler.GetRoutes().HandlePathPrefixFn(sh.PathPrefix.Get(), func(w http.ResponseWriter, r *http.Request) {
 		// For SPA mode, serve index for all non-asset paths
 		if !strings.Contains(r.URL.Path, ".") {
 			if sh.SecurityHeaders {
@@ -74,7 +76,7 @@ func (sh *SPAHandler) ServeSPAWithIndex(indexPath string, fsProvider comm.IFsAda
 		}
 
 		// Try to serve the actual file (assets like .js, .css, .png, etc.)
-		path := strings.TrimPrefix(r.URL.Path, sh.PathPrefix)
+		path := strings.TrimPrefix(r.URL.Path, sh.PathPrefix.Get())
 		if path == "" || path == "/" {
 			path = indexPath
 		}
@@ -94,7 +96,7 @@ func (sh *SPAHandler) ServeSPAWithIndex(indexPath string, fsProvider comm.IFsAda
 		if sh.SecurityHeaders {
 			sh.applySecurityHeaders(w)
 		}
-		sh.applyCacheHeaders(w, r, path)
+		sh.applyCacheHeaders(w, path)
 		ext := filepath.Ext(path)
 		mimeType := sh.HandlerRole.GetMimeType(ext)
 		if mimeType == "" {
@@ -110,7 +112,7 @@ func (sh *SPAHandler) ServeSPAWithIndex(indexPath string, fsProvider comm.IFsAda
 // ServeStatic serves static files from a filesystem provider with proper MIME types
 // This is useful for serving assets alongside the SPA
 func (sh *SPAHandler) ServeStatic(urlPath string, fsProvider comm.IFsAdapter) {
-	fullPath := sh.PathPrefix + urlPath
+	fullPath := sh.PathPrefix.Get() + urlPath
 
 	sh.Handler.GetRoutes().HandlePathPrefixFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		filePath := strings.TrimPrefix(r.URL.Path, fullPath)
@@ -131,7 +133,7 @@ func (sh *SPAHandler) ServeStatic(urlPath string, fsProvider comm.IFsAdapter) {
 		}
 
 		// Apply caching
-		sh.applyCacheHeaders(w, r, filePath)
+		sh.applyCacheHeaders(w, filePath)
 
 		// Set MIME type based on extension
 		ext := filepath.Ext(filePath)
@@ -156,7 +158,7 @@ func (sh *SPAHandler) applySecurityHeaders(w http.ResponseWriter) {
 }
 
 // applyCacheHeaders applies caching headers based on content type
-func (sh *SPAHandler) applyCacheHeaders(w http.ResponseWriter, r *http.Request, filePath string) {
+func (sh *SPAHandler) applyCacheHeaders(w http.ResponseWriter, filePath string) {
 	ext := filepath.Ext(filePath)
 
 	// HTML should not be cached

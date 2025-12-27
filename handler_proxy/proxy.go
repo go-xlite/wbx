@@ -38,8 +38,10 @@ func NewProxyHandler(handler handler_role.IHandler, targetURL string) (*ProxyHan
 		return nil, fmt.Errorf("invalid target URL: %w", err)
 	}
 
+	handlerRole := &handler_role.HandlerRole{Handler: handler}
+	handlerRole.SetPathPrefix("/")
 	ph := &ProxyHandler{
-		HandlerRole:     &handler_role.HandlerRole{Handler: handler, PathPrefix: "/"},
+		HandlerRole:     handlerRole,
 		targets:         []*url.URL{target},
 		Timeout:         30 * time.Second,
 		PreserveHost:    false,
@@ -240,7 +242,7 @@ func (ph *ProxyHandler) createReverseProxy(target *url.URL) *httputil.ReversePro
 
 // ProxyPass sets up a simple proxy pass for a given path
 func (ph *ProxyHandler) ProxyPass(path string) {
-	fullPath := ph.PathPrefix + path
+	fullPath := ph.PathPrefix.Get() + path
 	ph.Handler.GetRoutes().HandlePathPrefixFn(fullPath, ph.HandleProxy())
 }
 

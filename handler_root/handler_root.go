@@ -22,8 +22,10 @@ type RootHandler struct {
 
 // NewRootHandler creates a RootHandler wrapper around an existing handler instance
 func NewRootHandler(handler handler_role.IHandler) *RootHandler {
+	handlerRole := &handler_role.HandlerRole{Handler: handler}
+	handlerRole.SetPathPrefix("/")
 	return &RootHandler{
-		HandlerRole: &handler_role.HandlerRole{Handler: handler, PathPrefix: "/"},
+		HandlerRole: handlerRole,
 		CacheMaxAge: 24 * time.Hour,
 	}
 }
@@ -47,17 +49,18 @@ func (rh *RootHandler) ServeManifest(manifestPath string, fsProvider comm.IFsAda
 	}
 
 	urlPath := "/" + filepath.Base(manifestPath)
-	fullPath := rh.PathPrefix + strings.TrimPrefix(urlPath, "/")
+	fullPath := rh.PathPrefix.Get() + strings.TrimPrefix(urlPath, "/")
 
 	rh.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		ext := filepath.Ext(manifestPath)
 
 		// Set proper MIME type for manifest files
-		if ext == ".webmanifest" {
+		switch ext {
+		case ".webmanifest":
 			w.Header().Set("Content-Type", "application/manifest+json")
-		} else if ext == ".json" {
+		case ".json":
 			w.Header().Set("Content-Type", "application/json")
-		} else {
+		default:
 			w.Header().Set("Content-Type", "application/manifest+json")
 		}
 
@@ -92,7 +95,7 @@ func (rh *RootHandler) ServeRootFile(urlPath, filePath string, fsProvider comm.I
 		return err
 	}
 
-	fullPath := rh.PathPrefix + strings.TrimPrefix(urlPath, "/")
+	fullPath := rh.PathPrefix.Get() + strings.TrimPrefix(urlPath, "/")
 	rh.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
 		// Set MIME type based on extension
 		ext := filepath.Ext(filePath)

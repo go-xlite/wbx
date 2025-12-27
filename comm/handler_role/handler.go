@@ -1,6 +1,7 @@
 package handler_role
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -15,13 +16,83 @@ type IHandler interface {
 	GetMux() *mux.Router
 }
 
+type PathPrefix struct {
+	sv     *HandlerRole
+	Prefix string
+}
+
+func (pp *PathPrefix) Set(prefix string) {
+	// Normalize prefix to have leading slash, unless empty or just "/"
+	if prefix == "" || prefix == "/" {
+		pp.Prefix = ""
+	} else {
+		if !strings.HasPrefix(prefix, "/") {
+			pp.Prefix = "/" + prefix
+		} else {
+			pp.Prefix = prefix
+		}
+	}
+}
+
+func (pp *PathPrefix) Get() string {
+	return pp.Prefix
+}
+
+// IsSet returns true if a non-empty prefix is configured
+func (pp *PathPrefix) IsSet() bool {
+	return pp.Prefix != ""
+}
+
+// StripPrefix removes the path prefix from a request path
+// Returns the relative path with prefix removed, or error if path doesn't start with prefix
+func (pp *PathPrefix) StripPrefix(requestPath string) (string, error) {
+	if !pp.IsSet() {
+		return requestPath, nil
+	}
+
+	pathPrefix := pp.Get()
+	if !strings.HasPrefix(requestPath, pathPrefix) {
+		return "", fmt.Errorf("path does not start with PathPrefix")
+	}
+
+	return requestPath[len(pathPrefix):], nil
+}
+
+// PatchHTML injects the path prefix into HTML content by replacing absolute URLs
+// Replaces src="/ and href="/ with src="/prefix/ and href="/prefix/
+// Also adds a base tag for additional support
+func (pp *PathPrefix) PatchHTML(htmlContent string) string {
+	if !pp.IsSet() {
+		return htmlContent
+	}
+
+	prefix := pp.Get()
+
+	// Replace common absolute paths with prefixed versions
+	// Replace src="/... and href="/... with prefixed versions
+	htmlContent = strings.ReplaceAll(htmlContent, `src="/`, `src="`+prefix+`/`)
+	htmlContent = strings.ReplaceAll(htmlContent, `href="/`, `href="`+prefix+`/`)
+	htmlContent = strings.ReplaceAll(htmlContent, `SRC="/`, `SRC="`+prefix+`/`)
+	htmlContent = strings.ReplaceAll(htmlContent, `HREF="/`, `HREF="`+prefix+`/`)
+
+	// Also add base tag for additional support
+	baseTag := "<base href=\"" + prefix + "/\">"
+	if strings.Contains(strings.ToLower(htmlContent), "<head>") {
+		htmlContent = strings.Replace(htmlContent, "<head>", "<head>\n    "+baseTag, 1)
+		htmlContent = strings.Replace(htmlContent, "<HEAD>", "<HEAD>\n    "+baseTag, 1)
+	}
+
+	return htmlContent
+}
+
 type HandlerRole struct {
 	Handler     IHandler
 	CustomMimes map[string]string
-	PathPrefix  string
+	PathPrefix  *PathPrefix
 	CORS        CORS
 	OnStart     func() error
 	OnStop      func() error
+	OnRequest   func(w http.ResponseWriter, r *http.Request) bool
 }
 
 func (sr *HandlerRole) Start() error {
@@ -84,7 +155,7 @@ func (c *CORS) ApplyCORS(w http.ResponseWriter, r *http.Request) {
 func NewHandler() *HandlerRole {
 	sr := &HandlerRole{
 		CustomMimes: make(map[string]string),
-		PathPrefix:  "",
+		PathPrefix:  &PathPrefix{sv: nil, Prefix: ""},
 	}
 	sr.CORS.sv = sr
 	sr.CORS.EnableCORS = false
@@ -117,20 +188,16 @@ func (sr *HandlerRole) GetMimeType(ext string) string {
 	return comm.GetMimeType(ext)
 }
 
-// SetPathPrefix sets the base path prefix for CDN routes
 func (hr *HandlerRole) SetPathPrefix(prefix string) {
-	hr.PathPrefix = prefix
+	hr.PathPrefix.Set(prefix)
 }
 
-// Redirect creates a redirect from one path to another
-func (hr *HandlerRole) Redirect(fromPath, toPath string, permanent bool) {
-	fullPath := hr.PathPrefix + fromPath
-	statusCode := http.StatusFound
-	if permanent {
-		statusCode = http.StatusMovedPermanently
-	}
+// Redirect performs an HTTP redirect to the specified path
+func (hr *HandlerRole) Redirect(w http.ResponseWriter, r *http.Request, toPath string) {
+	http.Redirect(w, r, toPath, http.StatusFound)
+}
 
-	hr.Handler.GetRoutes().HandlePathFn(fullPath, func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, toPath, statusCode)
-	})
+// RedirectPermanent performs a permanent HTTP redirect to the specified path
+func (hr *HandlerRole) RedirectPermanent(w http.ResponseWriter, r *http.Request, toPath string) {
+	http.Redirect(w, r, toPath, http.StatusMovedPermanently)
 }
