@@ -1,25 +1,25 @@
 /**
  * SSEManager - Public API wrapper
  * Provides intellisense and proxies to actual implementation
- * Uses numeric API indices to avoid minification issues
  */
 
-// API indices (must match sse-manager-impl.js constructor)
-const API = {
-    CONNECT: 0,
-    DISCONNECT: 1,
-    ON: 2,
-    IS_PRIMARY: 3,
-    GET_STATE_CONN: 4,
-    GET_STATE: 5,
-    GS_RECONNECT: 6,
-    GS_RECONNECT_INTERVAL: 7,
-    GS_HEARTBEAT_INTERVAL: 8,
-    GS_ELECTION_TIMEOUT: 9,
-    GS_FAILOVER_CHECK_INTERVAL: 10
-};
+let mod;
 
 
+const SSE_EVENT = {
+    MESSAGE: 0,
+    OPEN: 1,
+    ERROR: 2,
+    CLOSE: 3,
+    PRIMARY: 4,
+    SECONDARY: 5
+}
+
+const SSE_STATE = {
+    DISCONNECTED: 0,
+    CONNECTING: 1,
+    CONNECTED: 2
+}
 
 /**
  * @typedef {Object} SSEManagerCallbacks
@@ -42,23 +42,24 @@ class SSEManager {
     constructor(url) {
         this._ = null;  // Implementation instance (short name to survive minification)
         this.u = url;
+        this.ops = {
+            reconnect: true,
+            reconnectInterval: 5000,
+            heartbeatInterval: 2000,
+            electionTimeout: 500,
+            failoverCheckInterval: 10000
+        };
+        // these are only stubs for intellisense purposes
     }
 
-    async _init() {
-        if (!this._) {
-            const module = await import('./sse-manager-impl.js');
-            this._ = new module.SSEManager(this.u);
-        }
-        return this._;
-    }
+
 
     /**
      * Connect to SSE endpoint with coordination
      * @returns {Promise<void>}
      */
     async connect() {
-        const impl = await this._init();
-        return impl.$[API.CONNECT]();
+        return this._.connect();
     }
 
     /**
@@ -66,17 +67,17 @@ class SSEManager {
      * @returns {void}
      */
     disconnect() {
-        this._.$[API.DISCONNECT]();
+        this._.disconnect();
     }
 
     /**
      * Register event callback
-     * @param {string} event - Event name ('open', 'message', 'error', 'close', 'primary', 'secondary')
+     * @param {number} event - Event type from SSE_EVENT (MESSAGE, OPEN, ERROR, CLOSE, PRIMARY, SECONDARY)
      * @param {function} callback - Callback function
      * @returns {void}
      */
     on(event, callback) {
-        this._.$[API.ON](event, callback);
+        this._.on(event, callback);
     }
 
     /**
@@ -84,56 +85,43 @@ class SSEManager {
      * @returns {boolean}
      */
     isPrimaryConnection() {
-        return this._.$[API.IS_PRIMARY]();
+        return this._.isPrimaryConnection();
     }
 
     /**
      * Get current connection state
-     * @returns {'disconnected'|'connecting'|'connected'}
+     * @returns {number} State from SSE_STATE (DISCONNECTED, CONNECTING, CONNECTED)
      */
     getConnectionState() {
-        return this._.$[API.GET_STATE_CONN]();
+        return this._.getConnectionState();
     }
 
     /**
      * Get current state
      * @returns {Object}
      */
-    getState() { return this._.$[API.GET_STATE](); }
-
-    // Option setters (proxy to implementation)
-    set reconnect(value) { this._.$[API.GS_RECONNECT](value); }
-    set reconnectInterval(value) { this._.$[API.GS_RECONNECT_INTERVAL](value); }
-    set heartbeatInterval(value) { this._.$[API.GS_HEARTBEAT_INTERVAL](value); }
-    set electionTimeout(value) { this._.$[API.GS_ELECTION_TIMEOUT](value); }
-    set failoverCheckInterval(value) { this._.$[API.GS_FAILOVER_CHECK_INTERVAL](value); }
-    // Option getters (proxy to implementation)
-    get reconnect() { return this._.$[API.GS_RECONNECT](); }
-    get reconnectInterval() { return this._.$[API.GS_RECONNECT_INTERVAL](); }
-    get heartbeatInterval() { return this._.$[API.GS_HEARTBEAT_INTERVAL](); }
-    get electionTimeout() { return this._.$[API.GS_ELECTION_TIMEOUT](); }
-    get failoverCheckInterval() { return this._.$[API.GS_FAILOVER_CHECK_INTERVAL](); }
+    getState() { return this._.getState(); }
 }
+
+
 
 /**
  * Create an SSEManager instance
  * @param {string} url - The SSE endpoint URL
+ * @param {SSEManagerOptions} [options] - Configuration options
  * @returns {Promise<SSEManager>} SSEManager instance with implementation loaded
  */
-export async function createSSEManager(url) {
+export async function createSSEManager(url, options) {
+    if (!mod) {
+        mod = await import('./sse-manager-impl.js');
+    }
     const manager = new SSEManager(url);
-    await manager._init();
+    manager._ = new mod.SSEManager(manager.u, options);
+    manager.ops = manager._.ops;
     return manager;
 }
 
-/**
- * Preload the SSEManager implementation without creating an instance
- * @returns {Promise<typeof SSEManager>} Promise that resolves to SSEManager class
- */
-export async function preloadSSEManager() {
-    const module = await import('./sse-manager-impl.js');
-    return module.SSEManager;
-}
+
 
 // Export stub class for type checking only
-export { SSEManager };
+export { SSEManager, SSE_EVENT, SSE_STATE };

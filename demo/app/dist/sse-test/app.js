@@ -3,7 +3,7 @@
  * Uses sse-manager-stub.js for dynamic import with full intellisense
  */
 
-import { createSSEManager } from './sse-manager.js';
+import { createSSEManager, SSE_EVENT, SSE_STATE } from './sse-manager.js';
 
 let sseManager = null;
 let receivedCount = 0;
@@ -79,12 +79,14 @@ async function connect() {
     addMessage(`Connecting to ${sseUrl}...`, 'info');
     
     // Create SSEManager instance (stub that loads impl on demand)
-    sseManager = await createSSEManager(sseUrl);
-    sseManager.reconnect = true;
-    sseManager.reconnectInterval = 5000;
-    sseManager.heartbeatInterval = 2000;
+    sseManager = await createSSEManager(sseUrl, {
+        reconnect: true,
+        reconnectInterval: 5000,
+        heartbeatInterval: 2000
+    });
     
-    sseManager.on('open', function() {
+    
+    sseManager.on(SSE_EVENT.OPEN, function() {
         updateStatus('connected');
         addMessage('Connected successfully!', 'received');
         connectTime = Date.now();
@@ -95,7 +97,7 @@ async function connect() {
         document.getElementById('disconnectBtn').disabled = false;
     });
     
-    sseManager.on('message', function(data) {
+    sseManager.on(SSE_EVENT.MESSAGE, function(data) {
         receivedCount++;
         updateStats();
         const isPrimary = sseManager.getState().isPrimary;
@@ -103,12 +105,12 @@ async function connect() {
         addMessage('Received' + prefix + ': ' + data, 'received');
     });
     
-    sseManager.on('error', function(error) {
+    sseManager.on(SSE_EVENT.ERROR, function(error) {
         addMessage('SSE connection error occurred', 'error');
         console.error('SSE error:', error);
     });
     
-    sseManager.on('close', function() {
+    sseManager.on(SSE_EVENT.CLOSE, function() {
         updateStatus('disconnected');
         addMessage('Connection closed', 'error');
         connectTime = null;
@@ -122,16 +124,16 @@ async function connect() {
         
         reconnectAttempts++;
         updateStats();
-        if (sseManager && sseManager.options.reconnect) {
+        if (sseManager && sseManager.ops.reconnect) {
             addMessage(`Reconnecting in 5 seconds... (Attempt ${reconnectAttempts})`, 'info');
         }
     });
     
-    sseManager.on('primary', function() {
+    sseManager.on(SSE_EVENT.PRIMARY, function() {
         addMessage('This tab is now the PRIMARY connection', 'info');
     });
     
-    sseManager.on('secondary', function() {
+    sseManager.on(SSE_EVENT.SECONDARY, function() {
         addMessage('This tab is SECONDARY (listening via coordination)', 'info');
     });
     
