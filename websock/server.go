@@ -6,6 +6,7 @@ import (
 	html_template "html/template"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	text_template "text/template"
 	"time"
@@ -407,29 +408,21 @@ func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRout
 	fmt.Printf("[WebSock] ServeManagerScript called - route: %s, worker: %s, iframe: %s\n", route, wsWorkerRoute, iframeRoute)
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
-	data := map[string]any{
-		"Route":         route,
-		"WsWorkerRoute": wsWorkerRoute,
-		"IframeRoute":   iframeRoute,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/browser-ws-manager.js")
+	// Read the minified file
+	content, err := clientFiles.ReadFile("client/browser-ws-manager.js")
 	if err != nil {
 		http.Error(w, "Script not found", http.StatusInternalServerError)
 		return
 	}
 
-	tmpl, err := text_template.New("manager").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
+	// Replace placeholders with actual values
+	result := string(content)
+	result = strings.ReplaceAll(result, "__WS_WORKER_ROUTE__", wsWorkerRoute)
+	result = strings.ReplaceAll(result, "__WS_IFRAME_ROUTE__", iframeRoute)
+	result = strings.ReplaceAll(result, "__WS_ROUTE__", route)
 
-	err = tmpl.ExecuteTemplate(w, "browser-ws-manager", data)
-	if err != nil {
-		http.Error(w, "Template execution error", http.StatusInternalServerError)
-		return
-	}
+	// Write the result
+	w.Write([]byte(result))
 }
 
 // RegisterClientRoutes registers all client-side routes (iframe, worker, manager scripts)

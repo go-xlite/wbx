@@ -1,0 +1,14 @@
+await Bun.build({
+  entrypoints: ["./js/browser-ws-manager.js"],
+  outdir: "./client",
+  minify: {
+    whitespace: true,
+    identifiers: true,
+    syntax: true,
+    properties: true,
+    keepNames: false
+  },
+  sourcemap: "none",
+  target: "browser",
+  splitting: false
+});
