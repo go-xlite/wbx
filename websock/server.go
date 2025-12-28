@@ -9,8 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-xlite/wbx/routes"
-	"github.com/gorilla/mux"
+	"github.com/go-xlite/wbx/comm"
 	"github.com/gorilla/websocket"
 )
 
@@ -38,8 +37,7 @@ type WorkerStats struct {
 // WebSock represents a WebSocket server for real-time bidirectional communication
 // Similar to Webcast but for WebSocket connections
 type WebSock struct {
-	Mux      *mux.Router
-	Routes   *routes.Routes
+	*comm.ServerCore
 	PathBase string // Optional base path for convenience (e.g., "/ws")
 	NotFound http.HandlerFunc
 
@@ -58,8 +56,7 @@ type WebSock struct {
 // NewWebSock creates a new WebSock instance with proper routing capabilities
 func NewWebSock() *WebSock {
 	ws := &WebSock{
-		Mux:         mux.NewRouter(),
-		PathBase:    "",
+		ServerCore:  comm.NewServerCore(),
 		clients:     make(map[string]*WsClient),
 		userClients: make(map[int64]map[string]bool),
 		register:    make(chan *WsClient),
@@ -71,7 +68,6 @@ func NewWebSock() *WebSock {
 		},
 		stats: WorkerStats{},
 	}
-	ws.Routes = routes.NewRoutes(ws.Mux, 1)
 	ws.NotFound = http.NotFound
 	return ws
 }
@@ -88,16 +84,6 @@ func (ws *WebSock) MakePath(suffix string) string {
 		return suffix
 	}
 	return ws.PathBase + suffix
-}
-
-// GetRoutes returns the Routes instance
-func (ws *WebSock) GetRoutes() *routes.Routes {
-	return ws.Routes
-}
-
-// GetMux returns the mux.Router instance
-func (ws *WebSock) GetMux() *mux.Router {
-	return ws.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler

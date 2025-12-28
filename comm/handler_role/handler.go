@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-xlite/wbx/comm"
-	"github.com/go-xlite/wbx/routes"
+	"github.com/go-xlite/wbx/comm/routes"
 	"github.com/gorilla/mux"
 )
 

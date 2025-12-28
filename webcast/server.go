@@ -7,8 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-xlite/wbx/routes"
-	"github.com/gorilla/mux"
+	comm "github.com/go-xlite/wbx/comm"
 )
 
 // SSEStats tracks statistics for an SSE endpoint
@@ -146,8 +145,7 @@ func (scm *SSEClientManager) incrementRejections() {
 // WebCast represents a Server-Sent Events (SSE) server for real-time streaming
 // Similar to WebTrail but optimized for SSE connections and broadcasting
 type WebCast struct {
-	Mux           *mux.Router
-	Routes        *routes.Routes
+	*comm.ServerCore
 	PathBase      string // Optional base path for convenience (e.g., "/events")
 	NotFound      http.HandlerFunc
 	clientManager *SSEClientManager
@@ -156,11 +154,10 @@ type WebCast struct {
 // NewWebCast creates a new WebCast instance with proper routing capabilities
 func NewWebCast() *WebCast {
 	wc := &WebCast{
-		Mux:           mux.NewRouter(),
+		ServerCore:    comm.NewServerCore(),
 		PathBase:      "",
 		clientManager: newSSEClientManager(),
 	}
-	wc.Routes = routes.NewRoutes(wc.Mux, 1)
 	wc.NotFound = http.NotFound
 	return wc
 }
@@ -178,16 +175,6 @@ func (wc *WebCast) MakePath(suffix string) string {
 		return suffix
 	}
 	return wc.PathBase + suffix
-}
-
-// GetRoutes returns the Routes instance
-func (wc *WebCast) GetRoutes() *routes.Routes {
-	return wc.Routes
-}
-
-// GetMux returns the mux.Router instance
-func (wc *WebCast) GetMux() *mux.Router {
-	return wc.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler

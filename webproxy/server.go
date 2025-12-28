@@ -9,8 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-xlite/wbx/routes"
-	"github.com/gorilla/mux"
+	"github.com/go-xlite/wbx/comm"
 )
 
 // ProxyStats tracks statistics for the proxy server
@@ -24,8 +23,7 @@ type ProxyStats struct {
 
 // Webproxy represents a reverse proxy server
 type Webproxy struct {
-	Mux      *mux.Router
-	Routes   *routes.Routes
+	*comm.ServerCore
 	PathBase string
 	NotFound http.HandlerFunc
 
@@ -57,11 +55,8 @@ func NewWebproxy(targetURL string) (*Webproxy, error) {
 		return nil, fmt.Errorf("invalid target URL: %w", err)
 	}
 
-	router := mux.NewRouter()
-
 	wp := &Webproxy{
-		Mux:             router,
-		Routes:          routes.NewRoutes(router, 0),
+		ServerCore:      comm.NewServerCore(),
 		PathBase:        "/",
 		targets:         []*url.URL{target},
 		Timeout:         30 * time.Second,
@@ -77,16 +72,6 @@ func NewWebproxy(targetURL string) (*Webproxy, error) {
 	wp.Routes.HandlePathPrefixFn("/", wp.handleProxy)
 
 	return wp, nil
-}
-
-// GetRoutes returns the Routes instance
-func (wp *Webproxy) GetRoutes() *routes.Routes {
-	return wp.Routes
-}
-
-// GetMux returns the mux.Router instance
-func (wp *Webproxy) GetMux() *mux.Router {
-	return wp.Mux
 }
 
 // OnRequest handles incoming HTTP requests

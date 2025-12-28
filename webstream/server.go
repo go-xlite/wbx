@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/go-xlite/wbx/comm"
-	"github.com/go-xlite/wbx/routes"
-	"github.com/gorilla/mux"
 )
 
 // MediaInfo contains metadata about a media file
@@ -39,8 +37,7 @@ type StreamConfig struct {
 
 // WebStream represents a media streaming server for video/audio with range request support
 type WebStream struct {
-	Mux               *mux.Router
-	Routes            *routes.Routes
+	*comm.ServerCore
 	PathBase          string
 	NotFound          http.HandlerFunc
 	FsAdapter         comm.IFsAdapter
@@ -53,7 +50,7 @@ type WebStream struct {
 // NewWebStream creates a new WebStream instance
 func NewWebStream(fsAdapter comm.IFsAdapter) *WebStream {
 	ws := &WebStream{
-		Mux:           mux.NewRouter(),
+		ServerCore:    comm.NewServerCore(),
 		PathBase:      "",
 		FsAdapter:     fsAdapter,
 		BufferSize:    32 * 1024, // 32KB buffer for streaming
@@ -74,7 +71,6 @@ func NewWebStream(fsAdapter comm.IFsAdapter) *WebStream {
 			".m4a":  true,
 		},
 	}
-	ws.Routes = routes.NewRoutes(ws.Mux, 1)
 	ws.NotFound = http.NotFound
 	return ws
 }
@@ -101,16 +97,6 @@ func NewWebStreamFromConfig(fsAdapter comm.IFsAdapter, config StreamConfig) *Web
 func (ws *WebStream) OnRequest(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("[WebStream] OnRequest: %s %s\n", r.Method, r.URL.Path)
 	ws.Mux.ServeHTTP(w, r)
-}
-
-// GetRoutes returns the Routes instance
-func (ws *WebStream) GetRoutes() *routes.Routes {
-	return ws.Routes
-}
-
-// GetMux returns the mux.Router instance
-func (ws *WebStream) GetMux() *mux.Router {
-	return ws.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler

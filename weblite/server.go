@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-xlite/wbx/routes"
+	"github.com/go-xlite/wbx/comm/routes"
 	"github.com/gorilla/mux"
 )
 
@@ -262,7 +262,7 @@ func NewWebLite(name string) *WebLite {
 		SSL:                 &SSL{},
 		DomainValidator:     NewDomainValidator(),
 	}
-	wl.Routes = routes.NewRoutes(wl.Mux, 0)
+	wl.Routes = routes.NewRoutes(wl.Mux)
 	return wl
 }
 

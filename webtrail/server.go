@@ -3,8 +3,7 @@ package webtrail
 import (
 	"net/http"
 
-	"github.com/go-xlite/wbx/routes"
-	"github.com/gorilla/mux"
+	"github.com/go-xlite/wbx/comm"
 )
 
 // WebTrail represents a backend server component that handles requests
@@ -13,8 +12,7 @@ import (
 //
 // Example: Main server proxies /api/* to WebTrail -> WebTrail sees /users, /orders, etc.
 type WebTrail struct {
-	Mux    *mux.Router
-	Routes *routes.Routes
+	*comm.ServerCore
 	// Note: The base path is NOT used in actual routing, only for helper methods
 	PathBase string // Optional base path for convenience (e.g., "/api" for documentation)
 	NotFound http.HandlerFunc
@@ -23,10 +21,9 @@ type WebTrail struct {
 // NewWebtrail creates a new WebTrail instance with proper routing capabilities
 func NewWebtrail() *WebTrail {
 	wt := &WebTrail{
-		Mux:      mux.NewRouter(),
-		PathBase: "",
+		ServerCore: comm.NewServerCore(),
+		PathBase:   "",
 	}
-	wt.Routes = routes.NewRoutes(wt.Mux, 1)
 	wt.NotFound = http.NotFound
 	return wt
 }
@@ -44,16 +41,6 @@ func (wt *WebTrail) MakePath(suffix string) string {
 		return suffix
 	}
 	return wt.PathBase + suffix
-}
-
-// GetRoutes returns the Routes instance
-func (wt *WebTrail) GetRoutes() *routes.Routes {
-	return wt.Routes
-}
-
-// GetMux returns the mux.Router instance
-func (wt *WebTrail) GetMux() *mux.Router {
-	return wt.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler
