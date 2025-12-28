@@ -143,9 +143,9 @@ func (scm *SSEClientManager) incrementRejections() {
 	scm.stats.ConnectionsRejected++
 }
 
-// Webcast represents a Server-Sent Events (SSE) server for real-time streaming
+// WebCast represents a Server-Sent Events (SSE) server for real-time streaming
 // Similar to WebTrail but optimized for SSE connections and broadcasting
-type Webcast struct {
+type WebCast struct {
 	Mux           *mux.Router
 	Routes        *routes.Routes
 	PathBase      string // Optional base path for convenience (e.g., "/events")
@@ -153,9 +153,9 @@ type Webcast struct {
 	clientManager *SSEClientManager
 }
 
-// NewWebcast creates a new Webcast instance with proper routing capabilities
-func NewWebcast() *Webcast {
-	wc := &Webcast{
+// NewWebCast creates a new WebCast instance with proper routing capabilities
+func NewWebCast() *WebCast {
+	wc := &WebCast{
 		Mux:           mux.NewRouter(),
 		PathBase:      "",
 		clientManager: newSSEClientManager(),
@@ -167,13 +167,13 @@ func NewWebcast() *Webcast {
 
 // OnRequest handles an incoming HTTP request using the registered routes
 // This is the main entry point when the main server forwards a request
-func (wc *Webcast) OnRequest(w http.ResponseWriter, r *http.Request) {
+func (wc *WebCast) OnRequest(w http.ResponseWriter, r *http.Request) {
 	wc.Mux.ServeHTTP(w, r)
 }
 
 // MakePath creates a full path by prepending the PathBase (if set)
 // Useful for documentation or when you want to know the full proxied path
-func (wc *Webcast) MakePath(suffix string) string {
+func (wc *WebCast) MakePath(suffix string) string {
 	if wc.PathBase == "" {
 		return suffix
 	}
@@ -181,28 +181,28 @@ func (wc *Webcast) MakePath(suffix string) string {
 }
 
 // GetRoutes returns the Routes instance
-func (wc *Webcast) GetRoutes() *routes.Routes {
+func (wc *WebCast) GetRoutes() *routes.Routes {
 	return wc.Routes
 }
 
 // GetMux returns the mux.Router instance
-func (wc *Webcast) GetMux() *mux.Router {
+func (wc *WebCast) GetMux() *mux.Router {
 	return wc.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler
-func (wc *Webcast) SetNotFoundHandler(handler http.HandlerFunc) {
+func (wc *WebCast) SetNotFoundHandler(handler http.HandlerFunc) {
 	wc.NotFound = handler
 	wc.Mux.NotFoundHandler = handler
 }
 
 // Broadcast sends a message to all connected clients
-func (wc *Webcast) Broadcast(message string) int {
+func (wc *WebCast) Broadcast(message string) int {
 	return wc.clientManager.broadcast(message)
 }
 
 // BroadcastJSON sends a JSON message to all connected clients
-func (wc *Webcast) BroadcastJSON(data interface{}) (int, error) {
+func (wc *WebCast) BroadcastJSON(data interface{}) (int, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return 0, err
@@ -211,12 +211,12 @@ func (wc *Webcast) BroadcastJSON(data interface{}) (int, error) {
 }
 
 // SendToClient sends a message to a specific client
-func (wc *Webcast) SendToClient(clientID string, message string) bool {
+func (wc *WebCast) SendToClient(clientID string, message string) bool {
 	return wc.clientManager.sendToClient(clientID, message)
 }
 
 // SendJSONToClient sends a JSON message to a specific client
-func (wc *Webcast) SendJSONToClient(clientID string, data interface{}) (bool, error) {
+func (wc *WebCast) SendJSONToClient(clientID string, data interface{}) (bool, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return false, err
@@ -225,37 +225,37 @@ func (wc *Webcast) SendJSONToClient(clientID string, data interface{}) (bool, er
 }
 
 // GetClientCount returns the number of connected clients
-func (wc *Webcast) GetClientCount() int {
+func (wc *WebCast) GetClientCount() int {
 	return wc.clientManager.getClientCount()
 }
 
 // GetStats returns statistics about this SSE endpoint
-func (wc *Webcast) GetStats() SSEStats {
+func (wc *WebCast) GetStats() SSEStats {
 	return wc.clientManager.getStats()
 }
 
 // GetClients returns a list of connected client IDs
-func (wc *Webcast) GetClients() []string {
+func (wc *WebCast) GetClients() []string {
 	return wc.clientManager.getClients()
 }
 
 // Shutdown closes all client connections
-func (wc *Webcast) Shutdown() {
+func (wc *WebCast) Shutdown() {
 	wc.clientManager.shutdown()
 }
 
 // AddClient adds a new SSE client connection
-func (wc *Webcast) AddClient(clientID string) chan string {
+func (wc *WebCast) AddClient(clientID string) chan string {
 	return wc.clientManager.addClient(clientID)
 }
 
 // RemoveClient removes an SSE client connection
-func (wc *Webcast) RemoveClient(clientID string) {
+func (wc *WebCast) RemoveClient(clientID string) {
 	wc.clientManager.removeClient(clientID)
 }
 
 // IncrementRejections increments the rejected connections counter
-func (wc *Webcast) IncrementRejections() {
+func (wc *WebCast) IncrementRejections() {
 	wc.clientManager.incrementRejections()
 }
 
@@ -271,7 +271,7 @@ type StreamConfig struct {
 }
 
 // StreamToClient handles the SSE streaming loop for a client
-func (wc *Webcast) StreamToClient(config StreamConfig) {
+func (wc *WebCast) StreamToClient(config StreamConfig) {
 	if config.ClientID == "" {
 		config.ClientID = fmt.Sprintf("sse_%d", time.Now().UnixNano())
 	}

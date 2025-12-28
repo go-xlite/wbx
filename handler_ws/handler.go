@@ -24,7 +24,7 @@ type WebSocketStats struct {
 type WsHandler struct {
 	*handler_role.HandlerRole
 	Name         string
-	websock      *websock.Websock
+	websock      *websock.WebSock
 	Route        string
 	IframeRoute  string
 	WorkerRoute  string
@@ -36,7 +36,7 @@ type WsHandler struct {
 }
 
 // NewWsHandler creates a new WebSocket handler
-func NewWsHandler(ws *websock.Websock, name string) *WsHandler {
+func NewWsHandler(ws *websock.WebSock, name string) *WsHandler {
 	handlerRole := handler_role.NewHandler()
 	handlerRole.Handler = ws
 

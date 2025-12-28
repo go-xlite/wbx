@@ -296,11 +296,6 @@ func (wp *Webproxy) GetStats() ProxyStats {
 	return wp.stats
 }
 
-// defaultNotFound is the default 404 handler
-func (wp *Webproxy) defaultNotFound(w http.ResponseWriter, r *http.Request) {
-	http.Error(w, "Proxy route not found", http.StatusNotFound)
-}
-
 // Helper functions
 
 // singleJoiningSlash joins two URL paths with a single slash

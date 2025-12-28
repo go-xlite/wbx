@@ -24,7 +24,7 @@ type WsClient struct {
 	Username string
 	Conn     *websocket.Conn
 	Send     chan []byte
-	Websock  *Websock
+	WebSock  *WebSock
 }
 
 // WorkerStats represents statistics for a WebSocket worker
@@ -35,9 +35,9 @@ type WorkerStats struct {
 	MessagesReceived   int64 `json:"messagesReceived"`
 }
 
-// Websock represents a WebSocket server for real-time bidirectional communication
+// WebSock represents a WebSocket server for real-time bidirectional communication
 // Similar to Webcast but for WebSocket connections
-type Websock struct {
+type WebSock struct {
 	Mux      *mux.Router
 	Routes   *routes.Routes
 	PathBase string // Optional base path for convenience (e.g., "/ws")
@@ -55,9 +55,9 @@ type Websock struct {
 	onMessage   func(client *WsClient, message []byte)
 }
 
-// NewWebsock creates a new Websock instance with proper routing capabilities
-func NewWebsock() *Websock {
-	ws := &Websock{
+// NewWebSock creates a new WebSock instance with proper routing capabilities
+func NewWebSock() *WebSock {
+	ws := &WebSock{
 		Mux:         mux.NewRouter(),
 		PathBase:    "",
 		clients:     make(map[string]*WsClient),
@@ -77,13 +77,13 @@ func NewWebsock() *Websock {
 }
 
 // OnRequest handles an incoming HTTP request using the registered routes
-func (ws *Websock) OnRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[Websock] OnRequest: %s %s\n", r.Method, r.URL.Path)
+func (ws *WebSock) OnRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[WebSock] OnRequest: %s %s\n", r.Method, r.URL.Path)
 	ws.Mux.ServeHTTP(w, r)
 }
 
 // MakePath creates a full path by prepending the PathBase (if set)
-func (ws *Websock) MakePath(suffix string) string {
+func (ws *WebSock) MakePath(suffix string) string {
 	if ws.PathBase == "" {
 		return suffix
 	}
@@ -91,28 +91,28 @@ func (ws *Websock) MakePath(suffix string) string {
 }
 
 // GetRoutes returns the Routes instance
-func (ws *Websock) GetRoutes() *routes.Routes {
+func (ws *WebSock) GetRoutes() *routes.Routes {
 	return ws.Routes
 }
 
 // GetMux returns the mux.Router instance
-func (ws *Websock) GetMux() *mux.Router {
+func (ws *WebSock) GetMux() *mux.Router {
 	return ws.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler
-func (ws *Websock) SetNotFoundHandler(handler http.HandlerFunc) {
+func (ws *WebSock) SetNotFoundHandler(handler http.HandlerFunc) {
 	ws.NotFound = handler
 	ws.Mux.NotFoundHandler = handler
 }
 
 // OnMessage sets the message handler callback
-func (ws *Websock) OnMessage(handler func(client *WsClient, message []byte)) {
+func (ws *WebSock) OnMessage(handler func(client *WsClient, message []byte)) {
 	ws.onMessage = handler
 }
 
 // GetStats returns current statistics
-func (ws *Websock) GetStats() WorkerStats {
+func (ws *WebSock) GetStats() WorkerStats {
 	ws.mu.RLock()
 	currentConnections := len(ws.clients)
 	ws.mu.RUnlock()
@@ -130,7 +130,7 @@ func (ws *Websock) GetStats() WorkerStats {
 }
 
 // Run starts the WebSocket server processing loop
-func (ws *Websock) Run() {
+func (ws *WebSock) Run() {
 	for {
 		select {
 		case client := <-ws.register:
@@ -166,7 +166,7 @@ func (ws *Websock) Run() {
 }
 
 // HandleConnection upgrades HTTP connection to WebSocket and manages the client
-func (ws *Websock) HandleConnection(wr http.ResponseWriter, r *http.Request, username string, userID int64, connID string) {
+func (ws *WebSock) HandleConnection(wr http.ResponseWriter, r *http.Request, username string, userID int64, connID string) {
 	wr.Header().Set("Content-Encoding", "identity")
 
 	conn, err := ws.upgrader.Upgrade(wr, r, nil)
@@ -184,7 +184,7 @@ func (ws *Websock) HandleConnection(wr http.ResponseWriter, r *http.Request, use
 		Username: username,
 		Conn:     conn,
 		Send:     make(chan []byte, 256),
-		Websock:  ws,
+		WebSock:  ws,
 	}
 
 	ws.register <- client
@@ -194,7 +194,7 @@ func (ws *Websock) HandleConnection(wr http.ResponseWriter, r *http.Request, use
 }
 
 // HandleCleanupConnection handles a cleanup WebSocket connection
-func (ws *Websock) HandleCleanupConnection(wr http.ResponseWriter, r *http.Request, username string, userID int64, connID string) {
+func (ws *WebSock) HandleCleanupConnection(wr http.ResponseWriter, r *http.Request, username string, userID int64, connID string) {
 	wr.Header().Set("Content-Encoding", "identity")
 
 	conn, err := ws.upgrader.Upgrade(wr, r, nil)
@@ -229,7 +229,7 @@ func (ws *Websock) HandleCleanupConnection(wr http.ResponseWriter, r *http.Reque
 }
 
 // SendToUser sends a message to all connections of a specific user
-func (ws *Websock) SendToUser(userID int64, message []byte) {
+func (ws *WebSock) SendToUser(userID int64, message []byte) {
 	ws.mu.RLock()
 	defer ws.mu.RUnlock()
 
@@ -253,7 +253,7 @@ func (ws *Websock) SendToUser(userID int64, message []byte) {
 }
 
 // SendToClient sends a message to a specific client connection
-func (ws *Websock) SendToClient(clientID string, message []byte) bool {
+func (ws *WebSock) SendToClient(clientID string, message []byte) bool {
 	ws.mu.RLock()
 	client, ok := ws.clients[clientID]
 	ws.mu.RUnlock()
@@ -272,7 +272,7 @@ func (ws *Websock) SendToClient(clientID string, message []byte) bool {
 }
 
 // Broadcast sends a message to all connected clients
-func (ws *Websock) Broadcast(message []byte) {
+func (ws *WebSock) Broadcast(message []byte) {
 	ws.mu.RLock()
 	defer ws.mu.RUnlock()
 
@@ -287,13 +287,13 @@ func (ws *Websock) Broadcast(message []byte) {
 	}
 }
 
-func (ws *Websock) incrementMessagesSent() {
+func (ws *WebSock) incrementMessagesSent() {
 	ws.statsMu.Lock()
 	ws.stats.MessagesSent++
 	ws.statsMu.Unlock()
 }
 
-func (ws *Websock) incrementMessagesReceived() {
+func (ws *WebSock) incrementMessagesReceived() {
 	ws.statsMu.Lock()
 	ws.stats.MessagesReceived++
 	ws.statsMu.Unlock()
@@ -302,7 +302,7 @@ func (ws *Websock) incrementMessagesReceived() {
 // readPump pumps messages from the WebSocket to the server
 func (c *WsClient) readPump() {
 	defer func() {
-		c.Websock.unregister <- c
+		c.WebSock.unregister <- c
 		c.Conn.Close()
 	}()
 
@@ -322,10 +322,10 @@ func (c *WsClient) readPump() {
 			break
 		}
 
-		c.Websock.incrementMessagesReceived()
+		c.WebSock.incrementMessagesReceived()
 
-		if c.Websock.onMessage != nil {
-			c.Websock.onMessage(c, message)
+		if c.WebSock.onMessage != nil {
+			c.WebSock.onMessage(c, message)
 		}
 	}
 }
@@ -387,7 +387,7 @@ func RandStringBytes(n int) string {
 }
 
 // ServeIframe serves the iframe HTML for fallback connections
-func (ws *Websock) ServeIframe(w http.ResponseWriter, route string) {
+func (ws *WebSock) ServeIframe(w http.ResponseWriter, route string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	data := map[string]interface{}{
@@ -410,7 +410,7 @@ func (ws *Websock) ServeIframe(w http.ResponseWriter, route string) {
 }
 
 // ServeWorkerScript serves the SharedWorker JavaScript
-func (ws *Websock) ServeWorkerScript(w http.ResponseWriter, route string) {
+func (ws *WebSock) ServeWorkerScript(w http.ResponseWriter, route string) {
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
 	data := map[string]interface{}{
@@ -433,7 +433,7 @@ func (ws *Websock) ServeWorkerScript(w http.ResponseWriter, route string) {
 }
 
 // ServeManagerScript serves the WebSocket manager JavaScript
-func (ws *Websock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute, iframeRoute string) {
+func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute, iframeRoute string) {
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
 	data := map[string]interface{}{
@@ -458,9 +458,9 @@ func (ws *Websock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRout
 }
 
 // RegisterClientRoutes registers all client-side routes (iframe, worker, manager scripts)
-func (ws *Websock) RegisterClientRoutes(pathPrefix, connectRoute, iframeRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
-	fmt.Printf("[Websock] RegisterClientRoutes - pathPrefix: '%s'\n", pathPrefix)
-	fmt.Printf("[Websock] Registering routes:\n")
+func (ws *WebSock) RegisterClientRoutes(pathPrefix, connectRoute, iframeRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
+	fmt.Printf("[WebSock] RegisterClientRoutes - pathPrefix: '%s'\n", pathPrefix)
+	fmt.Printf("[WebSock] Registering routes:\n")
 	fmt.Printf("  - Connect: %s\n", pathPrefix+connectRoute)
 	fmt.Printf("  - Iframe: %s\n", pathPrefix+iframeRoute)
 	fmt.Printf("  - Worker: %s\n", pathPrefix+workerRoute)

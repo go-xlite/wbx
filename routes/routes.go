@@ -61,6 +61,49 @@ func (r *Routes) HandlePathPrefixFnc(prefix string, handler func(http.ResponseWr
 	r.handlePathPrefixWithMethod(prefix, http.HandlerFunc(handler))
 }
 
+func (r *Routes) ForwardPathFn(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	// Wrap the handler to strip the base path and preserve original path in header
+	wrappedHandler := func(w http.ResponseWriter, req *http.Request) {
+		// Save original path in header if not already set
+		if req.Header.Get("X-Original-Path") == "" {
+			req.Header.Set("X-Original-Path", req.URL.Path)
+		}
+
+		// Strip the pattern from the path
+		req.URL.Path = strings.TrimPrefix(req.URL.Path, pattern)
+		if req.URL.Path == "" {
+			req.URL.Path = "/"
+		}
+
+		handler(w, req)
+	}
+
+	r.Mux.HandleFunc(pattern, wrappedHandler)
+}
+
+func (r *Routes) ForwardPathPrefixFn(prefix string, handler func(http.ResponseWriter, *http.Request)) {
+	// Normalize prefix
+	prefix = r.normalizePrefix(prefix)
+
+	// Wrap the handler to strip the prefix and preserve original path in header
+	wrappedHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// Save original path in header if not already set
+		if req.Header.Get("X-Original-Path") == "" {
+			req.Header.Set("X-Original-Path", req.URL.Path)
+		}
+
+		// Strip the prefix from the path
+		req.URL.Path = strings.TrimPrefix(req.URL.Path, strings.TrimSuffix(prefix, "/"))
+		if req.URL.Path == "" {
+			req.URL.Path = "/"
+		}
+
+		handler(w, req)
+	})
+
+	r.Mux.PathPrefix(prefix).Handler(wrappedHandler)
+}
+
 // Internal helpers for standardizing prefix handling
 
 func (r *Routes) normalizePrefix(prefix string) string {
@@ -127,11 +170,6 @@ func (r *Routes) GetRoutes() []map[string]string {
 }
 
 // Common HTTP method helpers
-
-// ANYPathFn registers a handler that responds to any HTTP method
-func (r *Routes) ANYPathFn(path string, handler http.HandlerFunc) {
-	r.Mux.HandleFunc(path, handler)
-}
 
 // GETPathFn registers a GET handler for exact path match
 func (r *Routes) GETPathFn(path string, handler http.HandlerFunc) {

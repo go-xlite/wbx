@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
-	"net/http"
-	"strings"
 	"time"
 
 	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
@@ -59,16 +57,8 @@ func main() {
 	// Storage: dist/index/index.html or dist/index/app.js
 
 	// Create webcast server for SSE connections
-	sseServer := webcast.NewWebcast()
-	server.GetRoutes().HandlePathPrefixFn("/xt23/sse/", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the /xt23/sse prefix since weblite mode 0 doesn't strip it automatically
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/sse")
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
-		}
-		log.Printf("[DEMO] Forwarding to webcast: %s", r.URL.Path)
-		sseServer.OnRequest(w, r)
-	})
+	sseServer := webcast.NewWebCast()
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse/", sseServer.OnRequest)
 
 	// Create SSE handler
 	sseHandler := handlersse.NewSSEHandler(sseServer)
@@ -97,7 +87,7 @@ func main() {
 	videoFsAdapter.SetBasePath("../../video_data")
 
 	// Create webstream server
-	streamServer := webstream.NewWebstream(videoFsAdapter)
+	streamServer := webstream.NewWebStream(videoFsAdapter)
 
 	// Create media handler (thin wrapper)
 	mediaHandler := handlermedia.NewMediaHandler(streamServer)
@@ -113,48 +103,24 @@ func main() {
 	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
 
 	// Create websock server for WebSocket connections
-	wsServer := websock.NewWebsock()
-	server.GetRoutes().HandlePathPrefixFn("/xt23/ws/", func(w http.ResponseWriter, r *http.Request) {
-		// Strip the /xt23/ws prefix since weblite mode 0 doesn't strip it automatically
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/ws")
-		if r.URL.Path == "" {
-			r.URL.Path = "/"
-		}
-		log.Printf("[DEMO] Forwarding to websock: %s", r.URL.Path)
-		wsServer.OnRequest(w, r)
-	})
+	wsServer := websock.NewWebSock()
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/ws/", wsServer.OnRequest)
 
 	go wsServer.Run()
 
 	// Register WebSocket routes before static handler
-	server.GetRoutes().HandlePathPrefixFn("/xt23/ws", func(w http.ResponseWriter, r *http.Request) {
-		// For weblite mode 0, we need to manually strip the prefix
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/ws")
-		wsServer.OnRequest(w, r)
-	})
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/ws", wsServer.OnRequest)
 
 	// Register SSE routes before static handler
-	server.GetRoutes().HandlePathPrefixFn("/xt23/sse", func(w http.ResponseWriter, r *http.Request) {
-		// For weblite mode 0, we need to manually strip the prefix
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/sse")
-		sseServer.OnRequest(w, r)
-	})
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse", sseServer.OnRequest)
 
 	// Register media streaming routes before static handler
 	mediaHandler.SetPathPrefix("/stream")
-	server.GetRoutes().HandlePathPrefixFn("/xt23/stream", func(w http.ResponseWriter, r *http.Request) {
-		// For weblite mode 0, we need to manually strip the prefix
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/stream")
-		mediaHandler.HandleMedia()(w, r)
-	})
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/stream", mediaHandler.HandleMedia())
 
 	// Register proxy routes before static handler
 	proxyHandler.SetPathPrefix("/proxy")
-	server.GetRoutes().HandlePathPrefixFn("/xt23/proxy", func(w http.ResponseWriter, r *http.Request) {
-		// For weblite mode 0, we need to manually strip the prefix
-		r.URL.Path = strings.TrimPrefix(r.URL.Path, "/xt23/proxy")
-		proxyHandler.HandleProxy()(w, r)
-	})
+	server.GetRoutes().ForwardPathPrefixFn("/xt23/proxy", proxyHandler.HandleProxy())
 
 	xappHandler.ServeStatic("/", embedAdapter)
 

@@ -13,7 +13,7 @@ import (
 // SSEHandler represents a Server-Sent Events endpoint
 type SSEHandler struct {
 	*handler_role.HandlerRole
-	webcast            *webcast.Webcast
+	webcast            *webcast.WebCast
 	KeepAliveInterval  time.Duration
 	OnClientConnect    func(clientID string)
 	OnClientDisconnect func(clientID string)
@@ -21,7 +21,7 @@ type SSEHandler struct {
 }
 
 // NewSSEHandler creates a new SSE handler
-func NewSSEHandler(wc *webcast.Webcast) *SSEHandler {
+func NewSSEHandler(wc *webcast.WebCast) *SSEHandler {
 	handlerRole := handler_role.NewHandler()
 	handlerRole.Handler = wc
 

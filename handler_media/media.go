@@ -13,11 +13,11 @@ import (
 // This is a thin wrapper that delegates to the webstream server
 type MediaHandler struct {
 	*handler_role.HandlerRole
-	webstream *webstream.Webstream
+	webstream *webstream.WebStream
 }
 
 // NewMediaHandler creates a new media handler
-func NewMediaHandler(ws *webstream.Webstream) *MediaHandler {
+func NewMediaHandler(ws *webstream.WebStream) *MediaHandler {
 	handlerRole := handler_role.NewHandler()
 	handlerRole.Handler = ws
 

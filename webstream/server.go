@@ -37,8 +37,8 @@ type StreamConfig struct {
 	AllowedExtensions map[string]bool
 }
 
-// Webstream represents a media streaming server for video/audio with range request support
-type Webstream struct {
+// WebStream represents a media streaming server for video/audio with range request support
+type WebStream struct {
 	Mux               *mux.Router
 	Routes            *routes.Routes
 	PathBase          string
@@ -50,9 +50,9 @@ type Webstream struct {
 	AllowedExtensions map[string]bool
 }
 
-// NewWebstream creates a new Webstream instance
-func NewWebstream(fsAdapter comm.IFsAdapter) *Webstream {
-	ws := &Webstream{
+// NewWebStream creates a new WebStream instance
+func NewWebStream(fsAdapter comm.IFsAdapter) *WebStream {
+	ws := &WebStream{
 		Mux:           mux.NewRouter(),
 		PathBase:      "",
 		FsAdapter:     fsAdapter,
@@ -79,9 +79,9 @@ func NewWebstream(fsAdapter comm.IFsAdapter) *Webstream {
 	return ws
 }
 
-// NewWebstreamFromConfig creates a Webstream from configuration
-func NewWebstreamFromConfig(fsAdapter comm.IFsAdapter, config StreamConfig) *Webstream {
-	ws := NewWebstream(fsAdapter)
+// NewWebStreamFromConfig creates a WebStream from configuration
+func NewWebStreamFromConfig(fsAdapter comm.IFsAdapter, config StreamConfig) *WebStream {
+	ws := NewWebStream(fsAdapter)
 
 	if config.BufferSize > 0 {
 		ws.BufferSize = config.BufferSize
@@ -98,29 +98,29 @@ func NewWebstreamFromConfig(fsAdapter comm.IFsAdapter, config StreamConfig) *Web
 }
 
 // OnRequest handles an incoming HTTP request using the registered routes
-func (ws *Webstream) OnRequest(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("[Webstream] OnRequest: %s %s\n", r.Method, r.URL.Path)
+func (ws *WebStream) OnRequest(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("[WebStream] OnRequest: %s %s\n", r.Method, r.URL.Path)
 	ws.Mux.ServeHTTP(w, r)
 }
 
 // GetRoutes returns the Routes instance
-func (ws *Webstream) GetRoutes() *routes.Routes {
+func (ws *WebStream) GetRoutes() *routes.Routes {
 	return ws.Routes
 }
 
 // GetMux returns the mux.Router instance
-func (ws *Webstream) GetMux() *mux.Router {
+func (ws *WebStream) GetMux() *mux.Router {
 	return ws.Mux
 }
 
 // SetNotFoundHandler sets a custom 404 handler
-func (ws *Webstream) SetNotFoundHandler(handler http.HandlerFunc) {
+func (ws *WebStream) SetNotFoundHandler(handler http.HandlerFunc) {
 	ws.NotFound = handler
 	ws.Mux.NotFoundHandler = handler
 }
 
 // AddAllowedExtension adds an allowed file extension
-func (ws *Webstream) AddAllowedExtension(ext string) {
+func (ws *WebStream) AddAllowedExtension(ext string) {
 	if !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
@@ -128,7 +128,7 @@ func (ws *Webstream) AddAllowedExtension(ext string) {
 }
 
 // ServeMedia serves a media file with range request support
-func (ws *Webstream) ServeMedia(w http.ResponseWriter, r *http.Request, filePath string) {
+func (ws *WebStream) ServeMedia(w http.ResponseWriter, r *http.Request, filePath string) {
 	// Clean the file path
 	cleanPath := filepath.Clean(filePath)
 
@@ -177,7 +177,7 @@ func (ws *Webstream) ServeMedia(w http.ResponseWriter, r *http.Request, filePath
 }
 
 // getMediaInfo retrieves information about a media file
-func (ws *Webstream) getMediaInfo(path string) (*MediaInfo, error) {
+func (ws *WebStream) getMediaInfo(path string) (*MediaInfo, error) {
 	fileInfo, err := ws.FsAdapter.Stat(path)
 	if err != nil {
 		return nil, err
@@ -196,7 +196,7 @@ func (ws *Webstream) getMediaInfo(path string) (*MediaInfo, error) {
 }
 
 // setMediaHeaders sets common headers for media responses
-func (ws *Webstream) setMediaHeaders(w http.ResponseWriter, info *MediaInfo) {
+func (ws *WebStream) setMediaHeaders(w http.ResponseWriter, info *MediaInfo) {
 	// Set content type
 	w.Header().Set("Content-Type", info.ContentType)
 
@@ -217,7 +217,7 @@ func (ws *Webstream) setMediaHeaders(w http.ResponseWriter, info *MediaInfo) {
 }
 
 // serveFullContent serves the entire media file
-func (ws *Webstream) serveFullContent(w http.ResponseWriter, r *http.Request, file io.ReadCloser, info *MediaInfo) {
+func (ws *WebStream) serveFullContent(w http.ResponseWriter, r *http.Request, file io.ReadCloser, info *MediaInfo) {
 	w.Header().Set("Content-Length", strconv.FormatInt(info.Size, 10))
 	w.WriteHeader(http.StatusOK)
 
@@ -229,7 +229,7 @@ func (ws *Webstream) serveFullContent(w http.ResponseWriter, r *http.Request, fi
 }
 
 // serveRangeRequest handles HTTP range requests for partial content
-func (ws *Webstream) serveRangeRequest(w http.ResponseWriter, r *http.Request, file io.ReadCloser, info *MediaInfo) {
+func (ws *WebStream) serveRangeRequest(w http.ResponseWriter, r *http.Request, file io.ReadCloser, info *MediaInfo) {
 	rangeHeader := r.Header.Get("Range")
 
 	// Parse range header
@@ -281,7 +281,7 @@ func (ws *Webstream) serveRangeRequest(w http.ResponseWriter, r *http.Request, f
 }
 
 // getContentType returns the MIME type for a file extension
-func (ws *Webstream) getContentType(ext string) string {
+func (ws *WebStream) getContentType(ext string) string {
 	contentTypes := map[string]string{
 		".mp4":  "video/mp4",
 		".webm": "video/webm",

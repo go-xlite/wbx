@@ -6,12 +6,15 @@ import (
 	media "github.com/go-xlite/wbx/handler_media"
 	pxy "github.com/go-xlite/wbx/handler_proxy"
 	rth "github.com/go-xlite/wbx/handler_root"
-	spa "github.com/go-xlite/wbx/handler_spa"
 	sse "github.com/go-xlite/wbx/handler_sse"
 	ws "github.com/go-xlite/wbx/handler_ws"
 	xapp "github.com/go-xlite/wbx/handler_xapp"
 	hl1 "github.com/go-xlite/wbx/helpers"
+	wc "github.com/go-xlite/wbx/webcast"
 	wl "github.com/go-xlite/wbx/weblite"
+	"github.com/go-xlite/wbx/webproxy"
+	wss "github.com/go-xlite/wbx/websock"
+	"github.com/go-xlite/wbx/webstream"
 	wt "github.com/go-xlite/wbx/webtrail"
 )
 
@@ -19,15 +22,22 @@ var WebLites = wl.Provider
 
 type WebTrail = wt.WebTrail
 type WebLite = wl.WebLite
+type WebCast = wc.WebCast
+type WebSock = wss.WebSock
+type WebStream = webstream.WebStream
+type WebProxy = webproxy.Webproxy
 
 var NewWebLite = wl.NewWebLite
 var NewWebTrail = wt.NewWebtrail
+var NewWebCast = wc.NewWebCast
+var NewWebSock = wss.NewWebSock
+var NewWebStream = webstream.NewWebStream
+var NewWebProxy = webproxy.NewWebproxy
 
 // Type aliases for easy access
 type ApiHandler = sa.ApiHandler
 type CdnHandler = sc.CdnHandler
 type XAppHandler = xapp.XAppHandler
-type SpaHandler = spa.SPAHandler
 type RootHandler = rth.RootHandler
 type SSEHandler = sse.SSEHandler
 type WsHandler = ws.WsHandler
@@ -38,7 +48,6 @@ type MediaHandler = media.MediaHandler
 var NewApiHandler = sa.NewApiHandler
 var NewCdnHandler = sc.NewCdnHandler
 var NewXAppHandler = xapp.NewXAppHandler
-var NewSpaHandler = spa.NewSPAHandler
 var NewRootHandler = rth.NewRootHandler
 var NewSSEHandler = sse.NewSSEHandler
 var NewWsHandler = ws.NewWsHandler
