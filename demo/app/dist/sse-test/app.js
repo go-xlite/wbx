@@ -3,7 +3,7 @@
  * Uses sse-manager-stub.js for dynamic import with full intellisense
  */
 
-import { createSSEManager } from './sse-manager-stub.js';
+import { createSSEManager } from './sse-manager.js';
 
 let sseManager = null;
 let receivedCount = 0;
@@ -78,12 +78,11 @@ async function connect() {
     
     addMessage(`Connecting to ${sseUrl}...`, 'info');
     
-    // Dynamically load and create SSEManager instance
-    sseManager = await createSSEManager(sseUrl, {
-        reconnect: true,
-        reconnectInterval: 5000,
-        heartbeatInterval: 2000
-    });
+    // Create SSEManager instance (stub that loads impl on demand)
+    sseManager = await createSSEManager(sseUrl);
+    sseManager.reconnect = true;
+    sseManager.reconnectInterval = 5000;
+    sseManager.heartbeatInterval = 2000;
     
     sseManager.on('open', function() {
         updateStatus('connected');
