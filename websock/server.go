@@ -3,10 +3,11 @@ package websock
 import (
 	"embed"
 	"fmt"
-	"html/template"
+	html_template "html/template"
 	"math/rand"
 	"net/http"
 	"sync"
+	text_template "text/template"
 	"time"
 
 	"github.com/go-xlite/wbx/comm"
@@ -24,14 +25,6 @@ type WsClient struct {
 	Conn     *websocket.Conn
 	Send     chan []byte
 	WebSock  *WebSock
-}
-
-// WorkerStats represents statistics for a WebSocket worker
-type WorkerStats struct {
-	CurrentConnections int   `json:"currentConnections"`
-	TotalConnections   int64 `json:"totalConnections"`
-	MessagesSent       int64 `json:"messagesSent"`
-	MessagesReceived   int64 `json:"messagesReceived"`
 }
 
 // WebSock represents a WebSocket server for real-time bidirectional communication
@@ -95,24 +88,6 @@ func (ws *WebSock) SetNotFoundHandler(handler http.HandlerFunc) {
 // OnMessage sets the message handler callback
 func (ws *WebSock) OnMessage(handler func(client *WsClient, message []byte)) {
 	ws.onMessage = handler
-}
-
-// GetStats returns current statistics
-func (ws *WebSock) GetStats() WorkerStats {
-	ws.mu.RLock()
-	currentConnections := len(ws.clients)
-	ws.mu.RUnlock()
-
-	ws.statsMu.RLock()
-	stats := WorkerStats{
-		CurrentConnections: currentConnections,
-		TotalConnections:   ws.stats.TotalConnections,
-		MessagesSent:       ws.stats.MessagesSent,
-		MessagesReceived:   ws.stats.MessagesReceived,
-	}
-	ws.statsMu.RUnlock()
-
-	return stats
 }
 
 // Run starts the WebSocket server processing loop
@@ -376,7 +351,7 @@ func RandStringBytes(n int) string {
 func (ws *WebSock) ServeIframe(w http.ResponseWriter, route string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"Route": route,
 	}
 
@@ -386,20 +361,25 @@ func (ws *WebSock) ServeIframe(w http.ResponseWriter, route string) {
 		return
 	}
 
-	tmpl, err := template.New("iframe").Parse(string(tmplContent))
+	tmpl, err := html_template.New("iframe").Parse(string(tmplContent))
 	if err != nil {
 		http.Error(w, "Template parse error", http.StatusInternalServerError)
 		return
 	}
 
-	tmpl.Execute(w, data)
+	err = tmpl.ExecuteTemplate(w, "socket-iframe", data)
+	if err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ServeWorkerScript serves the SharedWorker JavaScript
 func (ws *WebSock) ServeWorkerScript(w http.ResponseWriter, route string) {
+	fmt.Printf("[WebSock] ServeWorkerScript called - route: %s\n", route)
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"Route": route,
 	}
 
@@ -409,20 +389,25 @@ func (ws *WebSock) ServeWorkerScript(w http.ResponseWriter, route string) {
 		return
 	}
 
-	tmpl, err := template.New("worker").Parse(string(tmplContent))
+	tmpl, err := text_template.New("worker").Parse(string(tmplContent))
 	if err != nil {
 		http.Error(w, "Template parse error", http.StatusInternalServerError)
 		return
 	}
 
-	tmpl.Execute(w, data)
+	err = tmpl.ExecuteTemplate(w, "browser-worker", data)
+	if err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ServeManagerScript serves the WebSocket manager JavaScript
 func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute, iframeRoute string) {
+	fmt.Printf("[WebSock] ServeManagerScript called - route: %s, worker: %s, iframe: %s\n", route, wsWorkerRoute, iframeRoute)
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"Route":         route,
 		"WsWorkerRoute": wsWorkerRoute,
 		"IframeRoute":   iframeRoute,
@@ -434,17 +419,22 @@ func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRout
 		return
 	}
 
-	tmpl, err := template.New("manager").Parse(string(tmplContent))
+	tmpl, err := text_template.New("manager").Parse(string(tmplContent))
 	if err != nil {
 		http.Error(w, "Template parse error", http.StatusInternalServerError)
 		return
 	}
 
-	tmpl.Execute(w, data)
+	err = tmpl.ExecuteTemplate(w, "browser-ws-manager", data)
+	if err != nil {
+		http.Error(w, "Template execution error", http.StatusInternalServerError)
+		return
+	}
 }
 
 // RegisterClientRoutes registers all client-side routes (iframe, worker, manager scripts)
-func (ws *WebSock) RegisterClientRoutes(pathPrefix, connectRoute, iframeRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
+func (ws *WebSock) RegisterClientRoutes(connectRoute, iframeRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
+	pathPrefix := ws.PathBase
 	fmt.Printf("[WebSock] RegisterClientRoutes - pathPrefix: '%s'\n", pathPrefix)
 	fmt.Printf("[WebSock] Registering routes:\n")
 	fmt.Printf("  - Connect: %s\n", pathPrefix+connectRoute)

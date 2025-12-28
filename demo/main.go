@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"io/fs"
 	"log"
 	"time"
 
 	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
 	embedfs "github.com/go-xlite/wbx/adapter_fs/embed_fs"
 	osfs "github.com/go-xlite/wbx/adapter_fs/os_fs"
+	debugfs "github.com/go-xlite/wbx/debug/fs"
+	debugsse "github.com/go-xlite/wbx/debug/sse"
 	"github.com/go-xlite/wbx/demo/app"
 	handlermedia "github.com/go-xlite/wbx/handler_media"
 	handlerproxy "github.com/go-xlite/wbx/handler_proxy"
@@ -30,16 +31,7 @@ func main() {
 	appInstance := app.NewApp()
 
 	// Debug: List all embedded files
-	fmt.Println("[DEBUG] Embedded files:")
-	fs.WalkDir(appInstance.Content, ".", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !d.IsDir() {
-			fmt.Printf("  - %s\n", path)
-		}
-		return nil
-	})
+	debugfs.PrintEmbeddedFiles(appInstance.Content, "[DEBUG] Embedded files:")
 
 	// Create filesystem adapter for embedded files
 	embedAdapter := embedfs.NewEmbedFS(&appInstance.Content)
@@ -67,19 +59,7 @@ func main() {
 	sseServer.GetRoutes().HandlePathFn("/stream", sseHandler.HandleSSE())
 
 	// Start dummy SSE event streamer
-	go func() {
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
-		counter := 0
-		for range ticker.C {
-			counter++
-			message := fmt.Sprintf("Server event #%d at %s", counter, time.Now().Format("15:04:05"))
-			count := sseHandler.Broadcast(message)
-			if count > 0 {
-				log.Printf("[SSE] Broadcast message to %d clients: %s", count, message)
-			}
-		}
-	}()
+	debugsse.StartDummyStreamer(sseHandler, 3*time.Second)
 
 	// === Webstream (Media Streaming) ===
 	// Create filesystem adapter for video data
@@ -103,13 +83,9 @@ func main() {
 	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
 
 	// Create websock server for WebSocket connections
-	wsServer := websock.NewWebSock()
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/ws/", wsServer.OnRequest)
-
-	go wsServer.Run()
 
 	// Register WebSocket routes before static handler
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/ws", wsServer.OnRequest)
+	// server.GetRoutes().ForwardPathPrefixFn("/xt23/ws", wsServer.OnRequest)
 
 	// Register SSE routes before static handler
 	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse", sseServer.OnRequest)
@@ -122,10 +98,11 @@ func main() {
 	proxyHandler.SetPathPrefix("/proxy")
 	server.GetRoutes().ForwardPathPrefixFn("/xt23/proxy", proxyHandler.HandleProxy())
 
-	xappHandler.ServeStatic("/", embedAdapter)
-
+	wsServer := websock.NewWebSock()
 	// Create WebSocket handler
 	wsHandler := handlerws.NewWsHandler(wsServer, "demo-ws")
+	wsHandler.SetPathPrefix("/xt23")
+
 	wsHandler.OnMessage = func(clientID string, userID int64, username string, message []byte) {
 		log.Printf("[WebSocket] Message from %s (%s): %s", username, clientID, string(message))
 		// Echo message back to client
@@ -138,6 +115,8 @@ func main() {
 		log.Printf("[WebSocket] Client disconnected: %s (%s)", username, clientID)
 	}
 	wsHandler.Run()
+
+	xappHandler.ServeStatic("/", embedAdapter)
 
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")

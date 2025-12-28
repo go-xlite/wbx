@@ -28,7 +28,7 @@ func (wls *wlServers) New(name string) *WebLite {
 	return wl
 }
 
-func (wls *wlServers) Get(name string) *WebLite {
+func (wls *wlServers) GetByName(name string) *WebLite {
 	return wls.Items[name]
 }
 
@@ -39,6 +39,20 @@ func (wls *wlServers) CloseAll() {
 			println("Error closing server", name, ":", err.Error())
 		}
 	}
+}
+
+func (wls *wlServers) GetByIndex(index int) *WebLite {
+	if index < 0 || index >= len(wls.Items) {
+		return nil
+	}
+	i := 0
+	for _, wl := range wls.Items {
+		if i == index {
+			return wl
+		}
+		i++
+	}
+	return nil
 }
 
 func (wls *wlServers) List() []*WebLite {

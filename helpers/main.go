@@ -6,6 +6,6 @@ import (
 
 type XHelpers struct{}
 
-var GetMimeType = comm.GetMimeType
+var Mime = comm.Mime
 
 var Helpers = &XHelpers{}

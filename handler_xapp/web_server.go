@@ -272,7 +272,7 @@ func (ws *XAppHandler) applyCacheHeaders(w http.ResponseWriter, r *http.Request)
 		w.Header().Set("Expires", "0")
 		return
 	}
-	if comm.IsStaticExtension(ext) {
+	if comm.Mime.IsStaticExtension(ext) {
 		w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(ws.CacheMaxAge.Seconds())))
 		return
 	}

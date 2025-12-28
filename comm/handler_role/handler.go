@@ -38,6 +38,21 @@ func (pp *PathPrefix) Get() string {
 	return pp.Prefix
 }
 
+func ensureEndsWithSlash(s string) string {
+	if strings.HasSuffix(s, "/") {
+		return s
+	}
+	return s + "/"
+}
+
+func (pp *PathPrefix) Suffix(path string) string {
+	return ensureEndsWithSlash(pp.Prefix) + path
+}
+
+func (pp *PathPrefix) GetJoin(path ...string) string {
+	return ensureEndsWithSlash(pp.Prefix) + strings.Join(path, "/")
+}
+
 // IsSet returns true if a non-empty prefix is configured
 func (pp *PathPrefix) IsSet() bool {
 	return pp.Prefix != ""
@@ -185,7 +200,7 @@ func (sr *HandlerRole) GetMimeType(ext string) string {
 	}
 
 	// Return standard MIME type
-	return comm.GetMimeType(ext)
+	return comm.Mime.GetType(ext)
 }
 
 func (hr *HandlerRole) SetPathPrefix(prefix string) {

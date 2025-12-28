@@ -1,10 +1,15 @@
-let eventSource = null;
+/**
+ * SSE Test Application
+ * Uses sse-manager-stub.js for dynamic import with full intellisense
+ */
+
+import { createSSEManager } from './sse-manager-stub.js';
+
+let sseManager = null;
 let receivedCount = 0;
 let reconnectAttempts = 0;
 let connectTime = null;
 let uptimeInterval = null;
-let shouldReconnect = true;
-let reconnectTimeout = null;
 
 function escapeHtml(unsafe) {
     return unsafe
@@ -55,31 +60,32 @@ function updateUptime() {
     }
 }
 
-function connect() {
-    if (eventSource) {
+async function connect() {
+    if (sseManager) {
         addMessage('Already connected or connecting', 'error');
         return;
     }
 
-    shouldReconnect = true;
     updateStatus('connecting');
     
-    // Construct SSE URL based on current page location
-    // Extract path prefix from current URL (e.g., /xt23 from /xt23/sse-test/)
     const pathParts = window.location.pathname.split('/').filter(p => p);
     const pathPrefix = pathParts.length > 0 ? '/' + pathParts[0] : '';
     
     const protocol = window.location.protocol;
     const sseUrl = `${protocol}//${window.location.host}${pathPrefix}/sse/stream`;
     
-    // Update the displayed endpoint
     document.getElementById('sseEndpoint').textContent = sseUrl;
     
     addMessage(`Connecting to ${sseUrl}...`, 'info');
-
-    eventSource = new EventSource(sseUrl);
-
-    eventSource.onopen = function() {
+    
+    // Dynamically load and create SSEManager instance
+    sseManager = await createSSEManager(sseUrl, {
+        reconnect: true,
+        reconnectInterval: 5000,
+        heartbeatInterval: 2000
+    });
+    
+    sseManager.on('open', function() {
         updateStatus('connected');
         addMessage('Connected successfully!', 'received');
         connectTime = Date.now();
@@ -88,64 +94,56 @@ function connect() {
         updateStats();
         document.getElementById('connectBtn').disabled = true;
         document.getElementById('disconnectBtn').disabled = false;
-    };
-
-    eventSource.onmessage = function(event) {
+    });
+    
+    sseManager.on('message', function(data) {
         receivedCount++;
         updateStats();
-        addMessage('Received: ' + event.data, 'received');
-    };
-
-    eventSource.onerror = function(error) {
+        const isPrimary = sseManager.getState().isPrimary;
+        const prefix = isPrimary ? '' : ' (via coordination)';
+        addMessage('Received' + prefix + ': ' + data, 'received');
+    });
+    
+    sseManager.on('error', function(error) {
         addMessage('SSE connection error occurred', 'error');
         console.error('SSE error:', error);
-        
-        // EventSource automatically tries to reconnect, but we'll track it
-        if (eventSource.readyState === EventSource.CLOSED) {
-            handleDisconnect();
-        }
-    };
-}
-
-function handleDisconnect() {
-    updateStatus('disconnected');
-    connectTime = null;
-    if (uptimeInterval) {
-        clearInterval(uptimeInterval);
-        uptimeInterval = null;
-    }
-    updateUptime();
-    document.getElementById('connectBtn').disabled = false;
-    document.getElementById('disconnectBtn').disabled = true;
+    });
     
-    if (shouldReconnect && eventSource) {
+    sseManager.on('close', function() {
+        updateStatus('disconnected');
+        addMessage('Connection closed', 'error');
+        connectTime = null;
+        if (uptimeInterval) {
+            clearInterval(uptimeInterval);
+            uptimeInterval = null;
+        }
+        updateUptime();
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+        
         reconnectAttempts++;
         updateStats();
-        addMessage(`Connection lost. Reconnecting in 5 seconds... (Attempt ${reconnectAttempts})`, 'info');
-        
-        reconnectTimeout = setTimeout(() => {
-            if (shouldReconnect) {
-                eventSource = null;
-                connect();
-            }
-        }, 5000);
-    } else {
-        addMessage('Connection closed', 'error');
-        eventSource = null;
-    }
+        if (sseManager && sseManager.options.reconnect) {
+            addMessage(`Reconnecting in 5 seconds... (Attempt ${reconnectAttempts})`, 'info');
+        }
+    });
+    
+    sseManager.on('primary', function() {
+        addMessage('This tab is now the PRIMARY connection', 'info');
+    });
+    
+    sseManager.on('secondary', function() {
+        addMessage('This tab is SECONDARY (listening via coordination)', 'info');
+    });
+    
+    sseManager.connect();
 }
 
 function disconnect() {
-    shouldReconnect = false;
-    if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-        reconnectTimeout = null;
-    }
-    if (eventSource) {
+    if (sseManager) {
         addMessage('Disconnecting...', 'info');
-        eventSource.close();
-        eventSource = null;
-        handleDisconnect();
+        sseManager.disconnect();
+        sseManager = null;
     }
 }
 
@@ -154,7 +152,6 @@ function clearMessages() {
     addMessage('Message log cleared', 'info');
 }
 
-// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     updateStatus('disconnected');
     updateStats();
@@ -162,16 +159,16 @@ document.addEventListener('DOMContentLoaded', function() {
     addMessage('SSE Test Console loaded. Click Connect to start.', 'info');
 });
 
-// Cleanup on page unload
 window.addEventListener('beforeunload', function() {
-    shouldReconnect = false;
-    if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-    }
-    if (eventSource) {
-        eventSource.close();
+    if (sseManager) {
+        sseManager.disconnect();
     }
     if (uptimeInterval) {
         clearInterval(uptimeInterval);
     }
 });
+
+// Expose functions to global scope for onclick handlers
+window.connect = connect;
+window.disconnect = disconnect;
+window.clearMessages = clearMessages;

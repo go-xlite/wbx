@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
-	webFs "github.com/go-xlite/wbx/adapter_fs/web_fs"
 	"github.com/go-xlite/wbx/comm"
+	webFs "github.com/go-xlite/wbx/comm/web_fs"
 )
 
 // EmbedFS provides filesystem operations using Go's embedded filesystem

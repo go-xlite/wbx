@@ -1,8 +1,16 @@
-let ws = null;
 let sentCount = 0;
 let receivedCount = 0;
 let connectTime = null;
 let uptimeInterval = null;
+
+// Wait for wsManager to be available
+function waitForWsManager(callback) {
+    if (window.wsManager) {
+        callback();
+    } else {
+        setTimeout(() => waitForWsManager(callback), 100);
+    }
+}
 
 function escapeHtml(unsafe) {
     return unsafe
@@ -54,74 +62,50 @@ function updateUptime() {
 }
 
 function connect() {
-    if (ws) {
+    if (!window.wsManager) {
+        addMessage('WebSocket manager not loaded yet', 'error');
+        return;
+    }
+
+    if (window.wsManager.connectionState === 'connected') {
         addMessage('Already connected', 'error');
         return;
     }
 
     updateStatus('connecting');
-    
-    // Construct WebSocket URL based on current page location
-    // Extract path prefix from current URL (e.g., /xt23 from /xt23/ws-test/)
-    const pathParts = window.location.pathname.split('/').filter(p => p);
-    const pathPrefix = pathParts.length > 0 ? '/' + pathParts[0] : '';
-    
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}${pathPrefix}/ws/connect`;
-    addMessage(`Connecting to ${wsUrl}...`, 'info');
+    addMessage('Connecting via WebSocket manager...', 'info');
+    addMessage(`Connection mode: ${window.wsManager.connectionMode || 'auto-detect'}`, 'info');
 
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = function() {
-        updateStatus('connected');
-        addMessage('Connected successfully!', 'received');
-        connectTime = Date.now();
-        uptimeInterval = setInterval(updateUptime, 1000);
-        document.getElementById('connectBtn').disabled = true;
-        document.getElementById('disconnectBtn').disabled = false;
-        document.getElementById('sendBtn').disabled = false;
-        document.getElementById('pingBtn').disabled = false;
-        document.getElementById('burstBtn').disabled = false;
-    };
-
-    ws.onmessage = function(event) {
-        receivedCount++;
-        updateStats();
-        addMessage('Received: ' + event.data, 'received');
-    };
-
-    ws.onerror = function(error) {
-        addMessage('WebSocket error occurred', 'error');
-        console.error('WebSocket error:', error);
-    };
-
-    ws.onclose = function() {
-        updateStatus('disconnected');
-        addMessage('Connection closed', 'error');
-        ws = null;
-        connectTime = null;
-        if (uptimeInterval) {
-            clearInterval(uptimeInterval);
-            uptimeInterval = null;
-        }
-        updateUptime();
-        document.getElementById('connectBtn').disabled = false;
-        document.getElementById('disconnectBtn').disabled = true;
-        document.getElementById('sendBtn').disabled = true;
-        document.getElementById('pingBtn').disabled = true;
-        document.getElementById('burstBtn').disabled = true;
-    };
+    // Connect using the WebSocket manager
+    window.wsManager.connect();
 }
 
 function disconnect() {
-    if (ws) {
-        addMessage('Disconnecting...', 'info');
-        ws.close();
+    if (!window.wsManager) {
+        addMessage('WebSocket manager not loaded', 'error');
+        return;
     }
+
+    if (window.wsManager.connectionState !== 'connected') {
+        addMessage('Not connected', 'error');
+        return;
+    }
+
+    addMessage('Disconnecting...', 'info');
+    window.wsManager.disconnect();
 }
 
 function sendMessage() {
-    if (!ws) {
+    if (!window.wsManager) {
+        addMessage('WebSocket manager not loaded!', 'error');
+        return;
+    }
+
+    // Can send if connected OR if using coordination (secondary tab can relay through primary)
+    const canSend = window.wsManager.connectionState === 'connected' || 
+                    (window.wsManager.broadcastChannel && window.wsManager.broadcastChannel !== null);
+    
+    if (!canSend) {
         addMessage('Not connected!', 'error');
         return;
     }
@@ -134,7 +118,7 @@ function sendMessage() {
         return;
     }
 
-    ws.send(message);
+    window.wsManager.send(message);
     sentCount++;
     updateStats();
     addMessage('Sent: ' + message, 'sent');
@@ -142,27 +126,45 @@ function sendMessage() {
 }
 
 function sendPing() {
-    if (!ws) {
+    if (!window.wsManager) {
+        addMessage('WebSocket manager not loaded!', 'error');
+        return;
+    }
+
+    // Can send if connected OR if using coordination
+    const canSend = window.wsManager.connectionState === 'connected' || 
+                    (window.wsManager.broadcastChannel && window.wsManager.broadcastChannel !== null);
+    
+    if (!canSend) {
         addMessage('Not connected!', 'error');
         return;
     }
 
     const ping = JSON.stringify({ type: 'ping', timestamp: Date.now() });
-    ws.send(ping);
+    window.wsManager.send(ping);
     sentCount++;
     updateStats();
     addMessage('Sent PING', 'sent');
 }
 
 function sendBurst() {
-    if (!ws) {
+    if (!window.wsManager) {
+        addMessage('WebSocket manager not loaded!', 'error');
+        return;
+    }
+
+    // Can send if connected OR if using coordination
+    const canSend = window.wsManager.connectionState === 'connected' || 
+                    (window.wsManager.broadcastChannel && window.wsManager.broadcastChannel !== null);
+    
+    if (!canSend) {
         addMessage('Not connected!', 'error');
         return;
     }
 
     for (let i = 1; i <= 10; i++) {
         const msg = `Burst message ${i}/10`;
-        ws.send(msg);
+        window.wsManager.send(msg);
         sentCount++;
     }
     updateStats();
@@ -186,4 +188,93 @@ document.addEventListener('DOMContentLoaded', function() {
     updateStatus('disconnected');
     updateStats();
     updateUptime();
+
+    // Setup WebSocket manager event handlers
+    waitForWsManager(function() {
+        addMessage('WebSocket manager loaded', 'info');
+        addMessage(`Connection ID: ${window.wsManager.connectionId}`, 'info');
+
+        // Handle connection open
+        window.wsManager.on('open', function() {
+            updateStatus('connected');
+            addMessage('Connected successfully!', 'received');
+            addMessage(`Connection mode: ${window.wsManager.connectionMode}`, 'info');
+            connectTime = Date.now();
+            uptimeInterval = setInterval(updateUptime, 1000);
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('disconnectBtn').disabled = false;
+            document.getElementById('sendBtn').disabled = false;
+            document.getElementById('pingBtn').disabled = false;
+            document.getElementById('burstBtn').disabled = false;
+        });
+
+        // Handle incoming messages
+        window.wsManager.on('message', function(data) {
+            receivedCount++;
+            updateStats();
+            addMessage('Received: ' + data, 'received');
+        });
+
+        // Handle connection close - only disconnect UI if truly disconnected
+        window.wsManager.on('close', function() {
+            // Only show disconnected if we're not using SharedWorker coordination
+            // or if the SharedWorker itself is disconnected
+            if (!window.wsManager.broadcastChannel || window.wsManager.connectionMode === 'direct') {
+                updateStatus('disconnected');
+                addMessage('Connection closed', 'error');
+                connectTime = null;
+                if (uptimeInterval) {
+                    clearInterval(uptimeInterval);
+                    uptimeInterval = null;
+                }
+                updateUptime();
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('pingBtn').disabled = true;
+                document.getElementById('burstBtn').disabled = true;
+            }
+        });
+
+        // Handle errors
+        window.wsManager.on('error', function(error) {
+            addMessage('WebSocket error occurred', 'error');
+            console.error('WebSocket error:', error);
+        });
+
+        // Handle coordination events (when using SharedWorker)
+        if (window.wsManager.onCoordinationEvent) {
+            window.wsManager.onCoordinationEvent('became_primary', function() {
+                addMessage('This tab became the primary connection', 'info');
+            });
+
+            window.wsManager.onCoordinationEvent('became_secondary', function() {
+                addMessage('This tab is now secondary (connection maintained via SharedWorker)', 'info');
+                // Keep the connected state - we're still connected via SharedWorker
+                updateStatus('connected');
+            });
+
+            window.wsManager.onCoordinationEvent('primary_disconnected', function() {
+                // Primary connection lost, but we might take over
+                addMessage('Primary connection lost', 'error');
+            });
+
+            window.wsManager.onCoordinationEvent('all_disconnected', function() {
+                // All connections truly lost
+                updateStatus('disconnected');
+                addMessage('All connections closed', 'error');
+                connectTime = null;
+                if (uptimeInterval) {
+                    clearInterval(uptimeInterval);
+                    uptimeInterval = null;
+                }
+                updateUptime();
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('sendBtn').disabled = true;
+                document.getElementById('pingBtn').disabled = true;
+                document.getElementById('burstBtn').disabled = true;
+            });
+        }
+    });
 });
