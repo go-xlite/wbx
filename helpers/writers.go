@@ -45,3 +45,13 @@ func (h *XHelpers) WriteCssBytes(w http.ResponseWriter, data []byte) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
 }
+
+func (h *XHelpers) WriteNotFound(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte("404 - Not Found"))
+}
+
+func (h *XHelpers) WriteInternalError(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("500 - Internal Server Error: " + err.Error()))
+}

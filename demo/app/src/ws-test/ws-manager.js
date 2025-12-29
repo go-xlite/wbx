@@ -31,6 +31,12 @@ const WS_COORD_EVENT = {
     TABS_UPDATED: 8
 }
 
+const WS_SESSION_STRATEGY = {
+    ISOLATED: 1,              // Each tab gets its own session
+    SHARED: 2,                // Tabs share session, separate connections  
+    SHARED_CONNECTION: 4      // Tabs share session AND connection (SharedWorker)
+}
+
 /**
  * WebSocket Manager with SharedWorker coordination
  * Proxy wrapper that dynamically loads the actual implementation
@@ -220,13 +226,15 @@ class WebSocketManager {
     getDebugInfo() {
         return {
             connectionId: this._.connectionId,
+            sessionId: this._.sessionId,
             connectionState: this._.connectionState,
             connectionMode: this._.connectionMode,
             modeName: this.getModeName(),
             isPrimary: this.isPrimary(),
             coordinationEnabled: this.isCoordinationEnabled(),
             canSend: this.canSend(),
-            knownTabs: this._.getKnownTabs()
+            knownTabs: this._.getKnownTabs(),
+            sessionData: this._.sessionData
         };
     }
 
@@ -267,6 +275,50 @@ class WebSocketManager {
     }
 
     /**
+     * Get session ID
+     * @returns {string}
+     */
+    get sessionId() {
+        return this._.sessionId;
+    }
+
+    /**
+     * Set a value in the session
+     * @param {string} key - The key
+     * @param {any} value - The value
+     * @returns {void}
+     */
+    setSessionValue(key, value) {
+        this._.setSessionValue(key, value);
+    }
+
+    /**
+     * Get a value from the session
+     * @param {string} key - The key
+     * @returns {any} The value or undefined
+     */
+    getSessionValue(key) {
+        return this._.getSessionValue(key);
+    }
+
+    /**
+     * Delete a value from the session
+     * @param {string} key - The key
+     * @returns {void}
+     */
+    deleteSessionValue(key) {
+        this._.deleteSessionValue(key);
+    }
+
+    /**
+     * Clear all session data
+     * @returns {void}
+     */
+    clearSession() {
+        this._.clearSession();
+    }
+
+    /**
      * Get broadcast channel
      * @returns {BroadcastChannel}
      */
@@ -280,15 +332,19 @@ class WebSocketManager {
  * @param {Object} [options] - Configuration options
  * @returns {Promise<WebSocketManager>} WebSocketManager instance with implementation loaded
  */
-const importPath = '../../ws/manager.js';
+const importPath = '/xt23/ws/p/ws-manager-impl.js';
 export async function createWebSocketManager(options) {
     if (!mod) {
         mod = await import(importPath);
     }
+
+    options.wsRoute = "/xt23/ws/connect"
+    options.wsWorkerRoute = "/xt23/ws/p/ws-shared-worker.js"
+    options.endpoint = "/xt23/ws/connect"
     const manager = new WebSocketManager();
     manager._ = await mod.createWebSocketManager(options);
     return manager;
 }
 
 // Export stub class for type checking only
-export { WebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT };
+export { WebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT, WS_SESSION_STRATEGY };

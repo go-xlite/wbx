@@ -82,11 +82,6 @@ func main() {
 	// Create proxy handler (thin wrapper)
 	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
 
-	// Create websock server for WebSocket connections
-
-	// Register WebSocket routes before static handler
-	// server.GetRoutes().ForwardPathPrefixFn("/xt23/ws", wsServer.OnRequest)
-
 	// Register SSE routes before static handler
 	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse", sseServer.OnRequest)
 
@@ -99,20 +94,30 @@ func main() {
 	server.GetRoutes().ForwardPathPrefixFn("/xt23/proxy", proxyHandler.HandleProxy())
 
 	wsServer := websock.NewWebSock()
+
 	// Create WebSocket handler
 	wsHandler := handlerws.NewWsHandler(wsServer, "demo-ws")
-	wsHandler.SetPathPrefix("/xt23")
+	wsHandler.SetPathPrefix("/xt23/ws")
 
-	wsHandler.OnMessage = func(clientID string, userID int64, username string, message []byte) {
-		log.Printf("[WebSocket] Message from %s (%s): %s", username, clientID, string(message))
-		// Echo message back to client
-		wsServer.SendToClient(clientID, []byte(fmt.Sprintf("Echo: %s", string(message))))
+	wsServer.OnMessage(func(msg *websock.WsMessage) {
+		log.Printf("[WebSocket] Message from %s (%s, session: %s): %s",
+			msg.Client.Username, msg.ClientID, msg.SessionID, string(msg.Data))
+		// Send message to all clients in the same session (respects Isolated/Shared strategies)
+		// Create response message
+		response := &websock.WsMessage{
+			Client:    msg.Client,
+			Data:      []byte(fmt.Sprintf("Echo: %s", string(msg.Data))),
+			ClientID:  msg.ClientID,
+			SessionID: msg.SessionID,
+			SenderID:  msg.SenderID,
+		}
+		wsServer.SendToSession(response)
+	})
+	wsHandler.OnConnect = func(client *websock.WsClient) {
+		log.Printf("[WebSocket] Client connected: %s (%s, session: %s)", client.Username, client.ID, client.SessionID)
 	}
-	wsHandler.OnConnect = func(clientID string, userID int64, username string) {
-		log.Printf("[WebSocket] Client connected: %s (%s)", username, clientID)
-	}
-	wsHandler.OnDisconnect = func(clientID string, userID int64, username string) {
-		log.Printf("[WebSocket] Client disconnected: %s (%s)", username, clientID)
+	wsHandler.OnDisconnect = func(client *websock.WsClient) {
+		log.Printf("[WebSocket] Client disconnected: %s (%s, session: %s)", client.Username, client.ID, client.SessionID)
 	}
 	wsHandler.Run()
 
@@ -120,19 +125,6 @@ func main() {
 
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")
-	log.Println("Visit:")
-	log.Println("  - http://localhost:8080/xt23/ (serves from index directory)")
-	log.Println("  - http://localhost:8080/xt23/home")
-	log.Println("  - http://localhost:8080/xt23/ws-test/ (WebSocket test console)")
-	log.Println("  - http://localhost:8080/xt23/sse-test/ (SSE test console)")
-	log.Println("  - http://localhost:8080/xt23/stream-test/ (Media streaming test console)")
-	log.Println("  - http://localhost:8080/xt23/proxy-test/ (Reverse proxy test console)")
-	log.Println("  - http://localhost:8080/xt23/p/app.js (asset via virtual directory)")
-	log.Println("  - http://localhost:8080/xt23/sse/stream (SSE endpoint)")
-	log.Println("  - http://localhost:8080/xt23/stream/sharko_video.mp4 (Video stream endpoint)")
-	log.Println("  - http://localhost:8080/xt23/proxy/ (Reverse proxy to https://file-drop.gtn.one:8080/xt21/)")
-	log.Println("  - ws://localhost:8080/xt23/ws/connect (WebSocket endpoint)")
-	log.Println("  - http://localhost:8080/xt23/ws/manager.js (WebSocket manager script)")
 
 	if err := server.Start(); err != nil {
 		log.Fatalf("Server failed to start: %v", err)

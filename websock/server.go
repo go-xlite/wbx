@@ -1,11 +1,9 @@
 package websock
 
 import (
-	"embed"
 	"fmt"
 	"math/rand"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
@@ -13,17 +11,34 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-//go:embed client/*
-var clientFiles embed.FS
+type WsMessage struct {
+	Client    *WsClient
+	Data      []byte
+	ClientID  string
+	SessionID string
+	SenderID  string // this assumes the UserId of the sender
+}
+
+// WsSession represents a persistent session that survives reconnections
+type WsSession struct {
+	ID        string
+	UserID    int64
+	Username  string
+	Data      map[string]interface{}
+	CreatedAt time.Time
+	LastSeen  time.Time
+	mu        sync.RWMutex
+}
 
 // WsClient represents a connected WebSocket client
 type WsClient struct {
-	ID       string
-	UserID   int64
-	Username string
-	Conn     *websocket.Conn
-	Send     chan []byte
-	WebSock  *WebSock
+	ID        string
+	SessionID string
+	UserID    int64
+	Username  string
+	Conn      *websocket.Conn
+	Send      chan []byte
+	WebSock   *WebSock
 }
 
 // WebSock represents a WebSocket server for real-time bidirectional communication
@@ -36,13 +51,14 @@ type WebSock struct {
 	// WebSocket specific fields
 	clients     map[string]*WsClient
 	userClients map[int64]map[string]bool
+	sessions    map[string]*WsSession
 	register    chan *WsClient
 	unregister  chan *WsClient
 	mu          sync.RWMutex
 	upgrader    websocket.Upgrader
 	stats       WorkerStats
 	statsMu     sync.RWMutex
-	onMessage   func(client *WsClient, message []byte)
+	onMessage   func(msg *WsMessage)
 }
 
 // NewWebSock creates a new WebSock instance with proper routing capabilities
@@ -51,6 +67,7 @@ func NewWebSock() *WebSock {
 		ServerCore:  comm.NewServerCore(),
 		clients:     make(map[string]*WsClient),
 		userClients: make(map[int64]map[string]bool),
+		sessions:    make(map[string]*WsSession),
 		register:    make(chan *WsClient),
 		unregister:  make(chan *WsClient),
 		upgrader: websocket.Upgrader{
@@ -85,8 +102,9 @@ func (ws *WebSock) SetNotFoundHandler(handler http.HandlerFunc) {
 }
 
 // OnMessage sets the message handler callback
-func (ws *WebSock) OnMessage(handler func(client *WsClient, message []byte)) {
+func (ws *WebSock) OnMessage(handler func(msg *WsMessage)) {
 	ws.onMessage = handler
+
 }
 
 // Run starts the WebSocket server processing loop
@@ -161,13 +179,22 @@ func (ws *WebSock) HandleConnection(wr http.ResponseWriter, r *http.Request, use
 		connID = GenerateConnectionID()
 	}
 
+	// Get or create session
+	sessionID := r.URL.Query().Get("sessionid")
+	if sessionID == "" {
+		sessionID = GenerateConnectionID()
+	}
+
+	_ = ws.GetOrCreateSession(sessionID, userID, username)
+
 	client := &WsClient{
-		ID:       connID,
-		UserID:   userID,
-		Username: username,
-		Conn:     conn,
-		Send:     make(chan []byte, 256),
-		WebSock:  ws,
+		ID:        connID,
+		SessionID: sessionID,
+		UserID:    userID,
+		Username:  username,
+		Conn:      conn,
+		Send:      make(chan []byte, 256),
+		WebSock:   ws,
 	}
 
 	ws.register <- client
@@ -270,6 +297,135 @@ func (ws *WebSock) Broadcast(message []byte) {
 	}
 }
 
+// GetOrCreateSession gets an existing session or creates a new one
+func (ws *WebSock) GetOrCreateSession(sessionID string, userID int64, username string) *WsSession {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+
+	session, exists := ws.sessions[sessionID]
+	if !exists {
+		session = &WsSession{
+			ID:        sessionID,
+			UserID:    userID,
+			Username:  username,
+			Data:      make(map[string]interface{}),
+			CreatedAt: time.Now(),
+			LastSeen:  time.Now(),
+		}
+		ws.sessions[sessionID] = session
+	} else {
+		session.LastSeen = time.Now()
+	}
+
+	return session
+}
+
+// GetSession retrieves a session by ID
+func (ws *WebSock) GetSession(sessionID string) (*WsSession, bool) {
+	ws.mu.RLock()
+	defer ws.mu.RUnlock()
+	session, exists := ws.sessions[sessionID]
+	return session, exists
+}
+
+// DeleteSession removes a session
+func (ws *WebSock) DeleteSession(sessionID string) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	delete(ws.sessions, sessionID)
+}
+
+// SetSessionData sets a value in the session data
+func (session *WsSession) Set(key string, value interface{}) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	session.Data[key] = value
+}
+
+// GetSessionData gets a value from the session data
+func (session *WsSession) Get(key string) (interface{}, bool) {
+	session.mu.RLock()
+	defer session.mu.RUnlock()
+	value, exists := session.Data[key]
+	return value, exists
+}
+
+// DeleteSessionData deletes a key from the session data
+func (session *WsSession) Delete(key string) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	delete(session.Data, key)
+}
+
+// SendToSession sends a message to all clients in a session
+func (ws *WebSock) SendToSession(msg *WsMessage) bool {
+	ws.mu.RLock()
+	defer ws.mu.RUnlock()
+
+	sent := false
+	for _, client := range ws.clients {
+		if client.SessionID == msg.SessionID {
+			select {
+			case client.Send <- msg.Data:
+				ws.incrementMessagesSent()
+				sent = true
+			default:
+				// Client buffer full, skip
+			}
+		}
+	}
+	return sent
+}
+
+// SendToSessionExcept sends a message to all clients in a session EXCEPT the specified client
+// Useful for broadcasting updates without echoing back to the sender
+func (ws *WebSock) SendToSessionExcept(msg *WsMessage, excludeClientID string) bool {
+	ws.mu.RLock()
+	defer ws.mu.RUnlock()
+
+	sent := false
+	for _, client := range ws.clients {
+		if client.SessionID == msg.SessionID && client.ID != excludeClientID {
+			select {
+			case client.Send <- msg.Data:
+				ws.incrementMessagesSent()
+				sent = true
+			default:
+				// Client buffer full, skip
+			}
+		}
+	}
+	return sent
+}
+
+// GetSessionClients returns all clients connected to a session
+func (ws *WebSock) GetSessionClients(sessionID string) []*WsClient {
+	ws.mu.RLock()
+	defer ws.mu.RUnlock()
+
+	var clients []*WsClient
+	for _, client := range ws.clients {
+		if client.SessionID == sessionID {
+			clients = append(clients, client)
+		}
+	}
+	return clients
+}
+
+// GetSessionConnectionCount returns the number of active connections for a session
+func (ws *WebSock) GetSessionConnectionCount(sessionID string) int {
+	ws.mu.RLock()
+	defer ws.mu.RUnlock()
+
+	count := 0
+	for _, client := range ws.clients {
+		if client.SessionID == sessionID {
+			count++
+		}
+	}
+	return count
+}
+
 func (ws *WebSock) incrementMessagesSent() {
 	ws.statsMu.Lock()
 	ws.stats.MessagesSent++
@@ -308,7 +464,14 @@ func (c *WsClient) readPump() {
 		c.WebSock.incrementMessagesReceived()
 
 		if c.WebSock.onMessage != nil {
-			c.WebSock.onMessage(c, message)
+			msg := &WsMessage{
+				Client:    c,
+				Data:      message,
+				ClientID:  c.ID,
+				SessionID: c.SessionID,
+				SenderID:  fmt.Sprintf("%d", c.UserID),
+			}
+			c.WebSock.onMessage(msg)
 		}
 	}
 }
@@ -369,55 +532,12 @@ func RandStringBytes(n int) string {
 	return string(b)
 }
 
-// ServeWorkerScript serves the SharedWorker JavaScript
-func (ws *WebSock) ServeWorkerScript(w http.ResponseWriter, route string) {
-	fmt.Printf("[WebSock] ServeWorkerScript called - route: %s\n", route)
-	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-
-	// Read the minified file
-	content, err := clientFiles.ReadFile("client/browser-shared-worker.js")
-	if err != nil {
-		http.Error(w, "Script not found", http.StatusInternalServerError)
-		return
-	}
-
-	// Replace placeholder with actual route
-	result := string(content)
-	result = strings.ReplaceAll(result, "__WS_ROUTE__", route)
-
-	// Write the result
-	w.Write([]byte(result))
-}
-
-// ServeManagerScript serves the WebSocket manager JavaScript
-func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute string) {
-	fmt.Printf("[WebSock] ServeManagerScript called - route: %s, worker: %s\n", route, wsWorkerRoute)
-	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
-
-	// Read the minified file
-	content, err := clientFiles.ReadFile("client/browser-ws-manager.js")
-	if err != nil {
-		http.Error(w, "Script not found", http.StatusInternalServerError)
-		return
-	}
-
-	// Replace placeholders with actual values
-	result := string(content)
-	result = strings.ReplaceAll(result, "__WS_WORKER_ROUTE__", wsWorkerRoute)
-	result = strings.ReplaceAll(result, "__WS_ROUTE__", route)
-
-	// Write the result
-	w.Write([]byte(result))
-}
-
 // RegisterClientRoutes registers all client-side routes (worker, manager scripts)
-func (ws *WebSock) RegisterClientRoutes(connectRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
+func (ws *WebSock) RegisterClientRoutes(connectRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
 	pathPrefix := ws.PathBase
 	fmt.Printf("[WebSock] RegisterClientRoutes - pathPrefix: '%s'\n", pathPrefix)
 	fmt.Printf("[WebSock] Registering routes:\n")
 	fmt.Printf("  - Connect: %s\n", pathPrefix+connectRoute)
-	fmt.Printf("  - Worker: %s\n", pathPrefix+workerRoute)
-	fmt.Printf("  - Manager: %s\n", pathPrefix+managerRoute)
 
 	// Register WebSocket connection route
 	ws.Routes.HandlePathFn(pathPrefix+connectRoute, func(w http.ResponseWriter, r *http.Request) {
@@ -433,16 +553,4 @@ func (ws *WebSock) RegisterClientRoutes(connectRoute, workerRoute, managerRoute 
 		ws.HandleConnection(w, r, username, userID, connID)
 	})
 
-	// Register worker script route
-	ws.Routes.HandlePathFn(pathPrefix+workerRoute, func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeWorkerScript(w, pathPrefix+connectRoute)
-	})
-
-	// Register manager script route
-	ws.Routes.HandlePathFn(pathPrefix+managerRoute, func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeManagerScript(w,
-			pathPrefix+connectRoute,
-			pathPrefix+workerRoute,
-		)
-	})
 }

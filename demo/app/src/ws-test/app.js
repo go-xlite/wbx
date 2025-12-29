@@ -1,4 +1,4 @@
-import { createWebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT } from './ws-manager.js';
+import { createWebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT, WS_SESSION_STRATEGY } from './ws-manager.js';
 
 let wsManager = null;
 let sentCount = 0;
@@ -6,6 +6,9 @@ let receivedCount = 0;
 let connectTime = null;
 let uptimeInterval = null;
 let switchingMode = false;
+// Load session strategy from sessionStorage (tab-specific) or use default
+const storedStrategy = sessionStorage.getItem('ws-session-strategy');
+let currentSessionStrategy = storedStrategy ? parseInt(storedStrategy, 10) : WS_SESSION_STRATEGY.SHARED;
 
 function escapeHtml(unsafe) {
     return unsafe
@@ -204,8 +207,142 @@ function clearMode() {
     }
 }
 
+function setSessionStrategy(strategy) {
+    currentSessionStrategy = strategy;
+    // Save to sessionStorage (tab-specific)
+    sessionStorage.setItem('ws-session-strategy', strategy);
+    
+    const strategyNames = {
+        [WS_SESSION_STRATEGY.ISOLATED]: 'Isolated',
+        [WS_SESSION_STRATEGY.SHARED]: 'Shared'
+    };
+    
+    addMessage(`Session strategy will be: ${strategyNames[strategy]} (Direct mode only, takes effect on next reload)`, 'info');
+    document.getElementById('currentStrategy').textContent = strategyNames[strategy];
+    
+    // Update active button styling
+    document.querySelectorAll('.session-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-strategy="${strategy}"]`).classList.add('active');
+}
+
+function updateSessionInfo() {
+    if (!wsManager) return;
+    
+    const strategyNames = {
+        [WS_SESSION_STRATEGY.ISOLATED]: 'Isolated',
+        [WS_SESSION_STRATEGY.SHARED]: 'Shared',
+        [WS_SESSION_STRATEGY.SHARED_CONNECTION]: 'Shared Connection (SharedWorker)'
+    };
+    
+    const strategy = wsManager.sessionStrategy || currentSessionStrategy;
+    document.getElementById('currentStrategy').textContent = strategyNames[strategy] || `Unknown (${strategy})`;
+    document.getElementById('currentSessionId').textContent = wsManager.sessionId || '-';
+    
+    // Show tab count if coordination is enabled
+    if (wsManager.isCoordinationEnabled && wsManager.isCoordinationEnabled()) {
+        const tabs = wsManager.getKnownTabs ? wsManager.getKnownTabs() : [];
+        document.getElementById('sessionTabCount').textContent = tabs.length;
+    } else {
+        document.getElementById('sessionTabCount').textContent = '1 (no coordination)';
+    }
+    
+    // Update session data display
+    updateSessionDataDisplay();
+}
+
+function updateSessionDataDisplay() {
+    if (!wsManager) return;
+    const display = document.getElementById('sessionDataDisplay');
+    display.textContent = JSON.stringify(wsManager.sessionData || {}, null, 2);
+}
+
+function setSessionData() {
+    if (!wsManager) {
+        addMessage('WebSocket manager not loaded', 'error');
+        return;
+    }
+    
+    const key = document.getElementById('sessionKey').value.trim();
+    const value = document.getElementById('sessionValue').value.trim();
+    
+    if (!key) {
+        addMessage('Please enter a key', 'error');
+        return;
+    }
+    
+    wsManager.setSessionValue(key, value);
+    addMessage(`Set session[${key}] = "${value}"`, 'info');
+    document.getElementById('sessionKey').value = '';
+    document.getElementById('sessionValue').value = '';
+    updateSessionDataDisplay();
+}
+
+function getSessionData() {
+    if (!wsManager) {
+        addMessage('WebSocket manager not loaded', 'error');
+        return;
+    }
+    
+    const key = document.getElementById('sessionKey').value.trim();
+    
+    if (!key) {
+        addMessage('Please enter a key to get', 'error');
+        return;
+    }
+    
+    const value = wsManager.getSessionValue(key);
+    if (value !== undefined) {
+        addMessage(`session[${key}] = "${value}"`, 'info');
+        document.getElementById('sessionValue').value = value;
+    } else {
+        addMessage(`session[${key}] is not set`, 'error');
+    }
+}
+
+function clearSessionData() {
+    if (!wsManager) {
+        addMessage('WebSocket manager not loaded', 'error');
+        return;
+    }
+    
+    if (confirm('Clear all session data?')) {
+        wsManager.clearSession();
+        addMessage('Session data cleared', 'info');
+        updateSessionDataDisplay();
+        updateSessionInfo();
+    }
+}
+
 // Initialize the app
 async function initApp() {
+    // Attach event listeners to buttons
+    document.getElementById('connectBtn').addEventListener('click', connect);
+    document.getElementById('disconnectBtn').addEventListener('click', disconnect);
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('pingBtn').addEventListener('click', sendPing);
+    document.getElementById('burstBtn').addEventListener('click', sendBurst);
+    document.querySelector('[data-mode="1"]').addEventListener('click', () => setMode(1));
+    document.querySelector('[data-mode="4"]').addEventListener('click', () => setMode(4));
+    
+    // Session strategy buttons (only Isolated and Shared for Direct mode)
+    document.querySelector('[data-strategy="1"]').addEventListener('click', () => setSessionStrategy(WS_SESSION_STRATEGY.ISOLATED));
+    document.querySelector('[data-strategy="2"]').addEventListener('click', () => setSessionStrategy(WS_SESSION_STRATEGY.SHARED));
+    
+    // Session data buttons
+    document.getElementById('setSessionBtn').addEventListener('click', setSessionData);
+    document.getElementById('getSessionBtn').addEventListener('click', getSessionData);
+    document.getElementById('clearSessionBtn').addEventListener('click', clearSessionData);
+    
+    // Find buttons by text content
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(btn => {
+        if (btn.textContent.includes('Clear Log')) {
+            btn.addEventListener('click', clearMessages);
+        } else if (btn.textContent.includes('Auto-Detect')) {
+            btn.addEventListener('click', clearMode);
+        }
+    });
+    
     document.getElementById('messageInput').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             sendMessage();
@@ -219,10 +356,21 @@ async function initApp() {
 
     // Create WebSocket manager instance
     addMessage('Loading WebSocket manager...', 'info');
-    wsManager = await createWebSocketManager({ debug: true });
+    wsManager = await createWebSocketManager({ 
+        debug: true,
+        endpoint: '/ws/connect',  // Namespace session by endpoint
+        sessionStrategy: currentSessionStrategy
+    });
     
     addMessage('WebSocket manager loaded', 'info');
     addMessage(`Connection ID: ${wsManager.connectionId}`, 'info');
+    addMessage(`Session ID: ${wsManager.sessionId}`, 'info');
+    
+    // Update session info UI
+    updateSessionInfo();
+    
+    // Highlight active session strategy button
+    document.querySelector(`[data-strategy="${currentSessionStrategy}"]`).classList.add('active');
 
     // Highlight active mode button if a mode is set
     if (wsManager.connectionMode) {
@@ -344,6 +492,7 @@ async function initApp() {
             wsManager.onCoordinationEvent(WS_COORD_EVENT.TABS_UPDATED, function(tabs) {
                 // Tab list updated
                 console.log('Known tabs:', tabs);
+                updateSessionInfo();
             });
 
             wsManager.onCoordinationEvent(WS_COORD_EVENT.ENABLED, function() {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-xlite/wbx/comm/handler_role"
 	wsi "github.com/go-xlite/wbx/handler-server/ws"
+	"github.com/go-xlite/wbx/websock"
 )
 
 // WebSocketStats represents statistics for a WebSocket handler
@@ -34,12 +35,10 @@ type Handler struct {
 	Name          string
 	StatsProvider IServerStatsProvider
 	Server        ISocketServer
-	Route         string
-	WorkerRoute   string
-	ManagerRoute  string
-	OnConnect     func(clientID string, userID int64, username string)
-	OnDisconnect  func(clientID string, userID int64, username string)
-	OnMessage     func(clientID string, userID int64, username string, message []byte)
+	EndpointRoute string
+	OnConnect     func(client *websock.WsClient)
+	OnDisconnect  func(client *websock.WsClient)
+	OnMessage     func(clientID string, sessionID string, userID int64, username string, message []byte)
 	GetUserInfo   func(r *http.Request) (username string, userID int64) // Callback to extract user info from request
 }
 
@@ -53,19 +52,14 @@ func (wsh *Handler) GetStats() WebSocketStats {
 		TotalConnections:   workerStats.GetTotalConnections(),
 		MessagesSent:       workerStats.GetMessagesSent(),
 		MessagesReceived:   workerStats.GetMessagesReceived(),
-		Route:              wsh.PathPrefix.Suffix(wsh.Route),
-		WorkerRoute:        wsh.PathPrefix.Suffix(wsh.WorkerRoute),
-		ManagerRoute:       wsh.PathPrefix.Suffix(wsh.ManagerRoute),
 	}
 }
 
 func NewHandler(name string) *Handler {
 	return &Handler{
-		HandlerRole:  handler_role.NewHandler(),
-		Name:         name,
-		Route:        "/connect",
-		WorkerRoute:  "/worker.js",
-		ManagerRoute: "/manager.js",
+		HandlerRole:   handler_role.NewHandler(),
+		Name:          name,
+		EndpointRoute: "/connect",
 	}
 }
 
@@ -90,8 +84,6 @@ func (wsh *Handler) SetUserInfoExtractor(fn func(r *http.Request) (username stri
 }
 
 // SetRoutes sets custom routes for the WebSocket handler
-func (wsh *Handler) SetRoutes(route, workerRoute, managerRoute string) {
-	wsh.Route = route
-	wsh.WorkerRoute = workerRoute
-	wsh.ManagerRoute = managerRoute
+func (wsh *Handler) SetRoutes(endpointRoute string) {
+	wsh.EndpointRoute = endpointRoute
 }

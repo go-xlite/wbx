@@ -1,12 +1,18 @@
 package handlerws
 
 import (
+	"embed"
 	"net/http"
+	"strings"
 
 	wsh "github.com/go-xlite/wbx/handler/ws"
+	hl1 "github.com/go-xlite/wbx/helpers"
 	"github.com/go-xlite/wbx/weblite"
 	"github.com/go-xlite/wbx/websock"
 )
+
+//go:embed app-dist/*
+var efs embed.FS
 
 // WsHandler manages WebSocket connections with multiple fallback methods
 type WsHandler struct {
@@ -35,31 +41,27 @@ func NewWsHandler(ws *websock.WebSock, name string) *WsHandler {
 func (wsh *WsHandler) Run() {
 	// Start the websock server
 	server := weblite.Provider.Servers.GetByIndex(0)
-	if wsh.OnMessage == nil {
-		panic("OnMessage callback must be provided for WebSocket handler")
-	}
 	if server == nil {
 		panic("No WebLite server available to register WebSocket handler")
 	}
 
-	println("zebra azebr22a", wsh.PathPrefix.Suffix("ws"))
+	server.GetRoutes().ForwardPathPrefixFn(wsh.PathPrefix.Suffix("/p"), func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			data, _ := efs.ReadFile("app-dist" + r.URL.Path)
+			hl1.Helpers.WriteJsBytes(w, data)
+		}
+		hl1.Helpers.WriteNotFound(w)
 
-	server.GetRoutes().HandlePathPrefixFn(wsh.PathPrefix.Suffix("ws"), func(w http.ResponseWriter, r *http.Request) {
+	})
+	server.GetRoutes().ForwardPathPrefixFn(wsh.PathPrefix.Get(), func(w http.ResponseWriter, r *http.Request) {
 		wsh.websock.OnRequest(w, r)
 	})
-	wsh.websock.PathBase = wsh.PathPrefix.Suffix("ws")
-	go wsh.websock.Run()
 
-	// Register message handler if provided
-	wsh.websock.OnMessage(func(client *websock.WsClient, message []byte) {
-		wsh.OnMessage(client.ID, client.UserID, client.Username, message)
-	})
+	go wsh.websock.Run()
 
 	// Register all client routes through websock server
 	wsh.websock.RegisterClientRoutes(
-		wsh.Route,
-		wsh.WorkerRoute,
-		wsh.ManagerRoute,
+		wsh.EndpointRoute,
 		wsh.GetUserInfo,
 	)
 }

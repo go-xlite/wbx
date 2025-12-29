@@ -36,23 +36,49 @@
         </div>
 
         <div class="controls">
-            <button onclick="connect()" id="connectBtn" class="success">🔌 Connect</button>
-            <button onclick="disconnect()" id="disconnectBtn" class="danger" disabled>❌ Disconnect</button>
-            <button onclick="clearMessages()">🗑️ Clear Log</button>
-            <button onclick="sendPing()" id="pingBtn" disabled>📡 Ping</button>
-            <button onclick="sendBurst()" id="burstBtn" disabled>🚀 Send 10 Messages</button>
+            <button id="connectBtn" class="success">🔌 Connect</button>
+            <button id="disconnectBtn" class="danger" disabled>❌ Disconnect</button>
+            <button>🗑️ Clear Log</button>
+            <button id="pingBtn" disabled>📡 Ping</button>
+            <button id="burstBtn" disabled>🚀 Send 10 Messages</button>
         </div>
 
         <h3>🔧 Connection Mode</h3>
         <div class="controls">
-            <button onclick="setMode(1)" class="mode-btn" data-mode="1">👥 SharedWorker</button>
-            <button onclick="setMode(4)" class="mode-btn" data-mode="4">🔗 Direct</button>
-            <button onclick="clearMode()">🔄 Auto-Detect</button>
+            <button class="mode-btn" data-mode="1">👥 SharedWorker</button>
+            <button class="mode-btn" data-mode="4">🔗 Direct</button>
+            <button>🔄 Auto-Detect</button>
+        </div>
+
+        <h3>📦 Session Strategy (Direct Mode Only)</h3>
+        <div class="controls">
+            <button class="session-btn" data-strategy="1">🔒 Isolated</button>
+            <button class="session-btn" data-strategy="2">🔗 Shared (Default)</button>
+        </div>
+        <p style="font-size: 0.9em; color: #666; margin: 10px 0;">
+            <strong>Note:</strong> SharedWorker mode always uses shared connection. Session strategies only apply to Direct mode.
+        </p>
+        <div id="sessionInfo" style="margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; font-size: 0.9em;">
+            <div><strong>Session Strategy:</strong> <span id="currentStrategy">Shared</span></div>
+            <div><strong>Session ID:</strong> <span id="currentSessionId">-</span></div>
+            <div><strong>Tabs in Session:</strong> <span id="sessionTabCount">-</span></div>
+        </div>
+
+        <h3>💾 Session Data (Test)</h3>
+        <div class="input-group">
+            <input type="text" id="sessionKey" placeholder="Key" style="width: 30%;">
+            <input type="text" id="sessionValue" placeholder="Value" style="width: 40%;">
+            <button id="setSessionBtn">Set</button>
+            <button id="getSessionBtn">Get</button>
+            <button id="clearSessionBtn">Clear All</button>
+        </div>
+        <div id="sessionDataDisplay" style="margin: 10px 0; padding: 10px; background: #f9f9f9; border-radius: 5px; font-family: monospace; font-size: 0.85em; min-height: 50px;">
+            {}
         </div>
 
         <div class="input-group">
             <input type="text" id="messageInput" placeholder="Enter message to send...">
-            <button onclick="sendMessage()" id="sendBtn" disabled>Send</button>
+            <button id="sendBtn" disabled>Send</button>
         </div>
 
         <h3>📋 Message Log</h3>
