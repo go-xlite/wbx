@@ -1,9 +1,1 @@
-console.log('Home app.js loaded successfully!');
-console.log('Served via virtual directory pattern: /home/p/app.js -> dist/home/app.js');
-
-document.addEventListener('DOMContentLoaded', function() {
-    const h1 = document.querySelector('h1');
-    if (h1) {
-        h1.style.color = '#4CAF50';
-    }
-});
+console.log("Home app.js loaded successfully!");console.log("Served via virtual directory pattern: /home/p/app.js -> dist/home/app.js");document.addEventListener("DOMContentLoaded",function(){let e=document.querySelector("h1");if(e)e.style.color="#4CAF50"});

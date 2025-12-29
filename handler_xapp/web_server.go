@@ -227,10 +227,10 @@ func (ws *XAppHandler) ServeStatic(urlPath string, fsProvider comm.IFsAdapter) {
 		}
 
 		// Inject base tag and prefix paths for HTML files when PathPrefix is set
-		if isHTML && ws.PathPrefix.IsSet() {
-			htmlContent := ws.PathPrefix.PatchHTML(string(data))
-			data = []byte(htmlContent)
-		}
+		//if isHTML && ws.PathPrefix.IsSet() {
+		//htmlContent := ws.PathPrefix.PatchHTML(string(data))
+		//	data = []byte(htmlContent)
+		//	}
 
 		// Apply security headers
 		if ws.SecurityHeaders {

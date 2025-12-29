@@ -4,6 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home - WBX Demo</title>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Use getAttribute to get raw href value before browser resolves it
+            document.querySelectorAll('a[href*="__PREFIX__"]').forEach(el => {
+                const rawHref = el.getAttribute('href');
+                const newHref = rawHref.replace(/__PREFIX__/g, window.PATH_PREFIX);
+                el.setAttribute('href', newHref);
+            });
+        }, { once: true });
+        (function () {
+            const segments = window.location.pathname.split('/').filter(s => s);
+            window.PATH_PREFIX = segments.length > 0 ? '/' + segments[0] : '';
+        })();
+    </script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -98,25 +112,25 @@
                 <div class="card-description">Default landing page</div>
             </a>
             
-            <a href="/ws-test/" class="card">
+            <a href="__PREFIX__/ws-test/" class="card">
                 <div class="card-icon">🔌</div>
                 <div class="card-title">WebSocket Test</div>
                 <div class="card-description">Test real-time WebSocket connections with SharedWorker support</div>
             </a>
             
-            <a href="/sse-test/" class="card">
+            <a href="__PREFIX__/sse-test/" class="card">
                 <div class="card-icon">📡</div>
                 <div class="card-title">SSE Test</div>
                 <div class="card-description">Server-Sent Events streaming console</div>
             </a>
             
-            <a href="/stream-test/" class="card">
+            <a href="__PREFIX__/stream-test/" class="card">
                 <div class="card-icon">🎬</div>
                 <div class="card-title">Media Streaming</div>
                 <div class="card-description">Video streaming with range request support</div>
             </a>
             
-            <a href="/proxy-test/" class="card">
+            <a href="__PREFIX__/proxy-test/" class="card">
                 <div class="card-icon">🔀</div>
                 <div class="card-title">Reverse Proxy</div>
                 <div class="card-description">Test reverse proxy functionality</div>
@@ -127,14 +141,29 @@
             <h2>ℹ️ Server Information</h2>
             <ul class="info-list">
                 <li><strong>Server:</strong> WBX Demo Server</li>
-                <li><strong>Port:</strong> 8080</li>
-                <li><strong>Path Prefix:</strong> <code>/xt23</code></li>
+                <li><strong>Port:</strong> <code id="config-port">8080</code></li>
+                <li><strong>Path Prefix:</strong> <code id="config-prefix"></code></li>
                 <li><strong>Virtual Directory:</strong> <code>/p/</code></li>
-                <li><strong>WebSocket Endpoint:</strong> <code>ws://localhost:8080/xt23/ws/connect</code></li>
-                <li><strong>SSE Endpoint:</strong> <code>/xt23/sse/stream</code></li>
+                <li><strong>WebSocket Endpoint:</strong> <code id="config-ws-endpoint"></code></li>
+                <li><strong>SSE Endpoint:</strong> <code id="config-sse-endpoint"></code></li>
             </ul>
         </div>
     </div>
-    <script src="/home/p/app.js"></script>
+    <script>
+        // Set configuration display values
+        (function () {
+            const prefix = window.PATH_PREFIX;
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+            document.getElementById('config-port').textContent = port;
+            document.getElementById('config-prefix').textContent = prefix || '(none)';
+            document.getElementById('config-ws-endpoint').textContent = `${protocol}//${window.location.host}${prefix}/ws/connect`;
+            document.getElementById('config-sse-endpoint').textContent = `${prefix}/sse/stream`;
+        })();
+    </script>
+    <script type="module">
+        // Load app.js with dynamic prefix
+        import(`${window.PATH_PREFIX}/home/p/app.js`);
+    </script>
 </body>
 </html>

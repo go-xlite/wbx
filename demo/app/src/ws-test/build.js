@@ -1,6 +1,5 @@
 import fs from "fs";
-
-
+import { transform } from 'lightningcss';
 
 
 await Bun.build({
@@ -18,5 +17,12 @@ await Bun.build({
   splitting: false
 });
 
+const css = fs.readFileSync("./src/ws-test/styles.css", 'utf8');
+const { code } = transform({
+  filename: 'style.css',
+  code: Buffer.from(css),
+  minify: true,
+});
+
+fs.writeFileSync("./dist/ws-test/styles.css", code);
 fs.copyFileSync("./src/ws-test/index.html", "./dist/ws-test/index.html");
-fs.copyFileSync("./src/ws-test/styles.css", "./dist/ws-test/styles.css");

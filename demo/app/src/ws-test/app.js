@@ -1,4 +1,16 @@
-import { createWebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT, WS_SESSION_STRATEGY } from './ws-manager.js';
+import { createWebSocketManager, WS_EVENT, WS_STATE, WS_MODE, WS_COORD_EVENT, WS_SESSION_STRATEGY } from './ws-manager.ts';
+
+/**
+ * Extract the path prefix from the current URL
+ * The prefix is the first segment of the path
+ * e.g., "/xt23/ws-test/p/app.js" -> "/xt23"
+ */
+function getPathPrefix() {
+    const segments = window.location.pathname.split('/').filter(s => s);
+    return segments.length > 0 ? '/' + segments[0] : '';
+}
+
+const PATH_PREFIX = getPathPrefix();
 
 let wsManager = null;
 let sentCount = 0;
@@ -358,7 +370,7 @@ async function initApp() {
     addMessage('Loading WebSocket manager...', 'info');
     wsManager = await createWebSocketManager({ 
         debug: true,
-        endpoint: '/ws/connect',  // Namespace session by endpoint
+        endpoint: `${PATH_PREFIX}/ws/connect`,  // Use dynamic prefix
         sessionStrategy: currentSessionStrategy
     });
     

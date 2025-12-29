@@ -44,13 +44,19 @@ func ensureEndsWithSlash(s string) string {
 	}
 	return s + "/"
 }
+func ensureDoesNotStartWithSlash(s string) string {
+	if strings.HasPrefix(s, "/") {
+		return s[1:]
+	}
+	return s
+}
 
 func (pp *PathPrefix) Suffix(path string) string {
-	return ensureEndsWithSlash(pp.Prefix) + path
+	return ensureEndsWithSlash(pp.Prefix) + ensureDoesNotStartWithSlash(path)
 }
 
 func (pp *PathPrefix) GetJoin(path ...string) string {
-	return ensureEndsWithSlash(pp.Prefix) + strings.Join(path, "/")
+	return ensureEndsWithSlash(pp.Prefix) + ensureDoesNotStartWithSlash(strings.Join(path, "/"))
 }
 
 // IsSet returns true if a non-empty prefix is configured
@@ -73,29 +79,16 @@ func (pp *PathPrefix) StripPrefix(requestPath string) (string, error) {
 	return requestPath[len(pathPrefix):], nil
 }
 
-// PatchHTML injects the path prefix into HTML content by replacing absolute URLs
-// Replaces src="/ and href="/ with src="/prefix/ and href="/prefix/
-// Also adds a base tag for additional support
+// PatchHTML injects the path prefix into HTML content by replacing __PREFIX__ placeholder
+// Only replaces the explicit __PREFIX__ marker, leaving other URLs untouched
 func (pp *PathPrefix) PatchHTML(htmlContent string) string {
-	if !pp.IsSet() {
-		return htmlContent
-	}
-
 	prefix := pp.Get()
-
-	// Replace common absolute paths with prefixed versions
-	// Replace src="/... and href="/... with prefixed versions
-	htmlContent = strings.ReplaceAll(htmlContent, `src="/`, `src="`+prefix+`/`)
-	htmlContent = strings.ReplaceAll(htmlContent, `href="/`, `href="`+prefix+`/`)
-	htmlContent = strings.ReplaceAll(htmlContent, `SRC="/`, `SRC="`+prefix+`/`)
-	htmlContent = strings.ReplaceAll(htmlContent, `HREF="/`, `HREF="`+prefix+`/`)
-
-	// Also add base tag for additional support
-	baseTag := "<base href=\"" + prefix + "/\">"
-	if strings.Contains(strings.ToLower(htmlContent), "<head>") {
-		htmlContent = strings.Replace(htmlContent, "<head>", "<head>\n    "+baseTag, 1)
-		htmlContent = strings.Replace(htmlContent, "<HEAD>", "<HEAD>\n    "+baseTag, 1)
+	if prefix == "" {
+		prefix = "" // Use empty string if no prefix is set
 	}
+
+	// Replace __PREFIX__ placeholder with actual prefix
+	htmlContent = strings.ReplaceAll(htmlContent, `__PREFIX__`, prefix)
 
 	return htmlContent
 }
