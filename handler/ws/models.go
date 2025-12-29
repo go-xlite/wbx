@@ -15,7 +15,6 @@ type WebSocketStats struct {
 	MessagesSent       int64  `json:"messagesSent"`
 	MessagesReceived   int64  `json:"messagesReceived"`
 	Route              string `json:"route"`
-	IframeRoute        string `json:"iframeRoute"`
 	WorkerRoute        string `json:"workerRoute"`
 	ManagerRoute       string `json:"managerRoute"`
 }
@@ -36,7 +35,6 @@ type Handler struct {
 	StatsProvider IServerStatsProvider
 	Server        ISocketServer
 	Route         string
-	IframeRoute   string
 	WorkerRoute   string
 	ManagerRoute  string
 	OnConnect     func(clientID string, userID int64, username string)
@@ -56,7 +54,6 @@ func (wsh *Handler) GetStats() WebSocketStats {
 		MessagesSent:       workerStats.GetMessagesSent(),
 		MessagesReceived:   workerStats.GetMessagesReceived(),
 		Route:              wsh.PathPrefix.Suffix(wsh.Route),
-		IframeRoute:        wsh.PathPrefix.Suffix(wsh.IframeRoute),
 		WorkerRoute:        wsh.PathPrefix.Suffix(wsh.WorkerRoute),
 		ManagerRoute:       wsh.PathPrefix.Suffix(wsh.ManagerRoute),
 	}
@@ -67,7 +64,6 @@ func NewHandler(name string) *Handler {
 		HandlerRole:  handler_role.NewHandler(),
 		Name:         name,
 		Route:        "/connect",
-		IframeRoute:  "/iframe",
 		WorkerRoute:  "/worker.js",
 		ManagerRoute: "/manager.js",
 	}
@@ -94,9 +90,8 @@ func (wsh *Handler) SetUserInfoExtractor(fn func(r *http.Request) (username stri
 }
 
 // SetRoutes sets custom routes for the WebSocket handler
-func (wsh *Handler) SetRoutes(route, iframeRoute, workerRoute, managerRoute string) {
+func (wsh *Handler) SetRoutes(route, workerRoute, managerRoute string) {
 	wsh.Route = route
-	wsh.IframeRoute = iframeRoute
 	wsh.WorkerRoute = workerRoute
 	wsh.ManagerRoute = managerRoute
 }

@@ -3,12 +3,10 @@ package websock
 import (
 	"embed"
 	"fmt"
-	html_template "html/template"
 	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
-	text_template "text/template"
 	"time"
 
 	"github.com/go-xlite/wbx/comm"
@@ -97,6 +95,27 @@ func (ws *WebSock) Run() {
 		select {
 		case client := <-ws.register:
 			ws.mu.Lock()
+
+			// If a client with this ID already exists, close it first
+			if existingClient, exists := ws.clients[client.ID]; exists {
+				fmt.Printf("[WebSock] Duplicate connection ID detected: %s - closing old connection\n", client.ID)
+
+				// Remove the old client from maps BEFORE closing to prevent unregister from affecting new client
+				delete(ws.clients, existingClient.ID)
+				if clients, ok := ws.userClients[existingClient.UserID]; ok {
+					delete(clients, existingClient.ID)
+					if len(clients) == 0 {
+						delete(ws.userClients, existingClient.UserID)
+					}
+				}
+
+				// Close the old connection in the background
+				// Don't close the channel here - let readPump->unregister handle it
+				go func(c *WsClient) {
+					c.Conn.Close()
+				}(existingClient)
+			}
+
 			ws.clients[client.ID] = client
 
 			if _, ok := ws.userClients[client.UserID]; !ok {
@@ -111,7 +130,9 @@ func (ws *WebSock) Run() {
 
 		case client := <-ws.unregister:
 			ws.mu.Lock()
-			if _, ok := ws.clients[client.ID]; ok {
+			// Only delete if this exact client instance is still in the map
+			// (prevents deleting a newer client with the same ID)
+			if existingClient, ok := ws.clients[client.ID]; ok && existingClient == client {
 				delete(ws.clients, client.ID)
 				close(client.Send)
 
@@ -348,64 +369,29 @@ func RandStringBytes(n int) string {
 	return string(b)
 }
 
-// ServeIframe serves the iframe HTML for fallback connections
-func (ws *WebSock) ServeIframe(w http.ResponseWriter, route string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	data := map[string]any{
-		"Route": route,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/iframe.html")
-	if err != nil {
-		http.Error(w, "Template not found", http.StatusInternalServerError)
-		return
-	}
-
-	tmpl, err := html_template.New("iframe").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
-
-	err = tmpl.ExecuteTemplate(w, "socket-iframe", data)
-	if err != nil {
-		http.Error(w, "Template execution error", http.StatusInternalServerError)
-		return
-	}
-}
-
 // ServeWorkerScript serves the SharedWorker JavaScript
 func (ws *WebSock) ServeWorkerScript(w http.ResponseWriter, route string) {
 	fmt.Printf("[WebSock] ServeWorkerScript called - route: %s\n", route)
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
-	data := map[string]any{
-		"Route": route,
-	}
-
-	tmplContent, err := clientFiles.ReadFile("client/browser-shared-worker.js")
+	// Read the minified file
+	content, err := clientFiles.ReadFile("client/browser-shared-worker.js")
 	if err != nil {
 		http.Error(w, "Script not found", http.StatusInternalServerError)
 		return
 	}
 
-	tmpl, err := text_template.New("worker").Parse(string(tmplContent))
-	if err != nil {
-		http.Error(w, "Template parse error", http.StatusInternalServerError)
-		return
-	}
+	// Replace placeholder with actual route
+	result := string(content)
+	result = strings.ReplaceAll(result, "__WS_ROUTE__", route)
 
-	err = tmpl.ExecuteTemplate(w, "browser-worker", data)
-	if err != nil {
-		http.Error(w, "Template execution error", http.StatusInternalServerError)
-		return
-	}
+	// Write the result
+	w.Write([]byte(result))
 }
 
 // ServeManagerScript serves the WebSocket manager JavaScript
-func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute, iframeRoute string) {
-	fmt.Printf("[WebSock] ServeManagerScript called - route: %s, worker: %s, iframe: %s\n", route, wsWorkerRoute, iframeRoute)
+func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRoute string) {
+	fmt.Printf("[WebSock] ServeManagerScript called - route: %s, worker: %s\n", route, wsWorkerRoute)
 	w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 
 	// Read the minified file
@@ -418,20 +404,18 @@ func (ws *WebSock) ServeManagerScript(w http.ResponseWriter, route, wsWorkerRout
 	// Replace placeholders with actual values
 	result := string(content)
 	result = strings.ReplaceAll(result, "__WS_WORKER_ROUTE__", wsWorkerRoute)
-	result = strings.ReplaceAll(result, "__WS_IFRAME_ROUTE__", iframeRoute)
 	result = strings.ReplaceAll(result, "__WS_ROUTE__", route)
 
 	// Write the result
 	w.Write([]byte(result))
 }
 
-// RegisterClientRoutes registers all client-side routes (iframe, worker, manager scripts)
-func (ws *WebSock) RegisterClientRoutes(connectRoute, iframeRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
+// RegisterClientRoutes registers all client-side routes (worker, manager scripts)
+func (ws *WebSock) RegisterClientRoutes(connectRoute, workerRoute, managerRoute string, getUserInfo func(r *http.Request) (username string, userID int64)) {
 	pathPrefix := ws.PathBase
 	fmt.Printf("[WebSock] RegisterClientRoutes - pathPrefix: '%s'\n", pathPrefix)
 	fmt.Printf("[WebSock] Registering routes:\n")
 	fmt.Printf("  - Connect: %s\n", pathPrefix+connectRoute)
-	fmt.Printf("  - Iframe: %s\n", pathPrefix+iframeRoute)
 	fmt.Printf("  - Worker: %s\n", pathPrefix+workerRoute)
 	fmt.Printf("  - Manager: %s\n", pathPrefix+managerRoute)
 
@@ -449,11 +433,6 @@ func (ws *WebSock) RegisterClientRoutes(connectRoute, iframeRoute, workerRoute, 
 		ws.HandleConnection(w, r, username, userID, connID)
 	})
 
-	// Register iframe route
-	ws.Routes.HandlePathFn(pathPrefix+iframeRoute, func(w http.ResponseWriter, r *http.Request) {
-		ws.ServeIframe(w, pathPrefix+connectRoute)
-	})
-
 	// Register worker script route
 	ws.Routes.HandlePathFn(pathPrefix+workerRoute, func(w http.ResponseWriter, r *http.Request) {
 		ws.ServeWorkerScript(w, pathPrefix+connectRoute)
@@ -464,7 +443,6 @@ func (ws *WebSock) RegisterClientRoutes(connectRoute, iframeRoute, workerRoute, 
 		ws.ServeManagerScript(w,
 			pathPrefix+connectRoute,
 			pathPrefix+workerRoute,
-			pathPrefix+iframeRoute,
 		)
 	})
 }

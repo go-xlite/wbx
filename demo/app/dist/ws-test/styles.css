@@ -129,6 +129,22 @@ button:disabled {
     cursor: not-allowed;
 }
 
+.mode-btn {
+    background: #757575;
+}
+
+.mode-btn:hover:not(:disabled) {
+    background: #616161;
+}
+
+.mode-btn.active {
+    background: #4CAF50;
+}
+
+.mode-btn.active:hover {
+    background: #45a049;
+}
+
 button.danger {
     background: #f44336;
 }

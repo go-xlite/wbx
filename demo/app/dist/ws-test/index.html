@@ -43,6 +43,13 @@
             <button onclick="sendBurst()" id="burstBtn" disabled>🚀 Send 10 Messages</button>
         </div>
 
+        <h3>🔧 Connection Mode</h3>
+        <div class="controls">
+            <button onclick="setMode(1)" class="mode-btn" data-mode="1">👥 SharedWorker</button>
+            <button onclick="setMode(4)" class="mode-btn" data-mode="4">🔗 Direct</button>
+            <button onclick="clearMode()">🔄 Auto-Detect</button>
+        </div>
+
         <div class="input-group">
             <input type="text" id="messageInput" placeholder="Enter message to send...">
             <button onclick="sendMessage()" id="sendBtn" disabled>Send</button>
@@ -63,7 +70,6 @@
         </ul>
     </div>
 
-    <script src="/ws/manager.js"></script>
-    <script src="/ws-test/p/app.js"></script>
+    <script type="module" src="/ws-test/p/app.js"></script>
 </body>
 </html>

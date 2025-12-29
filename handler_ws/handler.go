@@ -42,7 +42,7 @@ func (wsh *WsHandler) Run() {
 		panic("No WebLite server available to register WebSocket handler")
 	}
 
-	println("zebra azebra", wsh.PathPrefix.Suffix("ws"))
+	println("zebra azebr22a", wsh.PathPrefix.Suffix("ws"))
 
 	server.GetRoutes().HandlePathPrefixFn(wsh.PathPrefix.Suffix("ws"), func(w http.ResponseWriter, r *http.Request) {
 		wsh.websock.OnRequest(w, r)
@@ -58,7 +58,6 @@ func (wsh *WsHandler) Run() {
 	// Register all client routes through websock server
 	wsh.websock.RegisterClientRoutes(
 		wsh.Route,
-		wsh.IframeRoute,
 		wsh.WorkerRoute,
 		wsh.ManagerRoute,
 		wsh.GetUserInfo,
