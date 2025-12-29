@@ -1,0 +1,1 @@
+console.log("Home app.js loaded successfully!");console.log("Served via virtual directory pattern: /home/p/app.js -> dist/home/app.js");document.addEventListener("DOMContentLoaded",function(){let e=document.querySelector("h1");if(e)e.style.color="#4CAF50"});

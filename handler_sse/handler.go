@@ -1,14 +1,19 @@
 package handlersse
 
 import (
+	"embed"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
+	hl1 "github.com/go-xlite/wbx/helpers"
 	"github.com/go-xlite/wbx/webcast"
 )
+
+//go:embed app-dist/*
+var content embed.FS
 
 // SSEHandler represents a Server-Sent Events endpoint
 type SSEHandler struct {
@@ -39,25 +44,36 @@ func (sh *SSEHandler) SetKeepAliveInterval(interval time.Duration) *SSEHandler {
 }
 
 // HandleSSE creates an HTTP handler for SSE connections
-func (sh *SSEHandler) HandleSSE() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		clientReq := &SSEClientReq{
-			handler:           sh,
-			W:                 w,
-			R:                 r,
-			KeepAliveInterval: int(sh.KeepAliveInterval.Seconds()),
-			Metadata:          make(map[string]string),
-		}
-
-		// Call custom request handler if set
-		if sh.OnClientRequest != nil {
-			sh.OnClientRequest(clientReq)
-		} else {
-			// Default behavior: auto-generate client ID and accept
-			clientReq.SetGeneratedClientID("sse")
-			clientReq.Accept()
-		}
+func (sh *SSEHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
+	clientReq := &SSEClientReq{
+		handler:           sh,
+		W:                 w,
+		R:                 r,
+		KeepAliveInterval: int(sh.KeepAliveInterval.Seconds()),
+		Metadata:          make(map[string]string),
 	}
+
+	// Call custom request handler if set
+	if sh.OnClientRequest != nil {
+		sh.OnClientRequest(clientReq)
+	} else {
+		// Default behavior: auto-generate client ID and accept
+		clientReq.SetGeneratedClientID("sse")
+		clientReq.Accept()
+	}
+}
+
+func (sh *SSEHandler) Run() {
+
+	sh.webcast.GetRoutes().ForwardPathPrefixFn(sh.PathPrefix.Suffix("p"), func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			data, _ := content.ReadFile("app-dist" + r.URL.Path)
+			hl1.Helpers.WriteJsBytes(w, data)
+			return
+		}
+		hl1.Helpers.WriteNotFound(w)
+	})
+	sh.webcast.GetRoutes().ForwardPathFn(sh.PathPrefix.Suffix("stream"), sh.HandleSSE)
 }
 
 // Broadcast sends a message to all connected clients

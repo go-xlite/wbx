@@ -1,1 +1,0 @@
-console.log("Index app.js loaded successfully!");console.log("Served via virtual directory pattern: /index/p/app.js -> dist/index/app.js");document.addEventListener("DOMContentLoaded",function(){let e=document.querySelector("h1");if(e)e.style.color="#2196F3"});

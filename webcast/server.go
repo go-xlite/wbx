@@ -10,16 +10,6 @@ import (
 	comm "github.com/go-xlite/wbx/comm"
 )
 
-// SSEStats tracks statistics for an SSE endpoint
-type SSEStats struct {
-	TotalConnections      int64     `json:"totalConnections"`
-	CurrentConnections    int       `json:"currentConnections"`
-	MessagesSent          int64     `json:"messagesSent"`
-	ConnectionsRejected   int64     `json:"connectionsRejected"`
-	LastConnectionTime    time.Time `json:"lastConnectionTime"`
-	LastDisconnectionTime time.Time `json:"lastDisconnectionTime"`
-}
-
 // SSEClientManager handles client connections for a specific SSE endpoint
 type SSEClientManager struct {
 	clients map[string]chan string

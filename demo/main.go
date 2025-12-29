@@ -8,9 +8,8 @@ import (
 	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
 	embedfs "github.com/go-xlite/wbx/adapter_fs/embed_fs"
 	osfs "github.com/go-xlite/wbx/adapter_fs/os_fs"
-	debugfs "github.com/go-xlite/wbx/debug/fs"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
-	"github.com/go-xlite/wbx/demo/app"
+	client "github.com/go-xlite/wbx/demo/client"
 	handlermedia "github.com/go-xlite/wbx/handler_media"
 	handlerproxy "github.com/go-xlite/wbx/handler_proxy"
 	handlersse "github.com/go-xlite/wbx/handler_sse"
@@ -20,82 +19,49 @@ import (
 	"github.com/go-xlite/wbx/webproxy"
 	"github.com/go-xlite/wbx/websock"
 	"github.com/go-xlite/wbx/webstream"
+	websway "github.com/go-xlite/wbx/websway"
 )
 
 func main() {
 	// Create weblite server using provider
 	server := weblite.Provider.Servers.New("demo")
 	server.SetPort("8080")
-
 	// Initialize the application with embedded files
-	appInstance := app.NewApp()
+	clientInstance := client.NewClient()
 
-	// Debug: List all embedded files
-	debugfs.PrintEmbeddedFiles(appInstance.Content, "[DEBUG] Embedded files:")
-
-	// Create filesystem adapter for embedded files
-	embedAdapter := embedfs.NewEmbedFS(&appInstance.Content)
-	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
-
-	// Create XApp handler for serving HTML applications
-	xappHandler := wbx.NewXAppHandler(server)
-	xappHandler.SetPathPrefix("xt23")
-	xappHandler.SecurityHeaders = true
-	xappHandler.VirtualDirSegment = "p"       // Use /p/ for virtual directory
-	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
-
-	// Serve from root / (maps to index directory by default)
-	// URL: localhost:8080/ or localhost:8080/p/app.js
-	// Storage: dist/index/index.html or dist/index/app.js
+	//debugfs.PrintEmbeddedFiles(clientInstance.Content, "[DEBUG] Embedded files:")
 
 	// Create webcast server for SSE connections
 	sseServer := webcast.NewWebCast()
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse/", sseServer.OnRequest)
-
 	// Create SSE handler
 	sseHandler := handlersse.NewSSEHandler(sseServer)
-
-	// Register SSE stream endpoint
-	sseServer.GetRoutes().HandlePathFn("/stream", sseHandler.HandleSSE())
-
+	sseHandler.SetPathPrefix("/xt23/sse")
+	server.GetRoutes().HandlePathPrefixFn(sseHandler.PathPrefix.Get(), sseServer.OnRequest)
+	sseHandler.Run()
 	// Start dummy SSE event streamer
 	debugsse.StartDummyStreamer(sseHandler, 3*time.Second)
 
 	// === Webstream (Media Streaming) ===
+
 	// Create filesystem adapter for video data
 	videoFsAdapter := osfs.NewOsFsAdapter()
 	videoFsAdapter.SetBasePath("../../video_data")
 
 	// Create webstream server
 	streamServer := webstream.NewWebStream(videoFsAdapter)
-
-	// Create media handler (thin wrapper)
 	mediaHandler := handlermedia.NewMediaHandler(streamServer)
+	mediaHandler.SetPathPrefix("/xt23/stream")
+	server.GetRoutes().ForwardPathPrefixFn(mediaHandler.PathPrefix.Get(), mediaHandler.HandleMedia())
 
 	// === Webproxy (Reverse Proxy) ===
 	// Create webproxy server pointing to external service
-	proxyServer, err := webproxy.NewWebproxy("https://file-drop.gtn.one:8080/xt21/")
-	if err != nil {
-		log.Fatalf("Failed to create proxy server: %v", err)
-	}
-
-	// Create proxy handler (thin wrapper)
+	proxyServer, _ := webproxy.NewWebproxy("https://file-drop.gtn.one:8080/xt21/")
 	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
+	proxyHandler.SetPathPrefix("/xt23/proxy")
+	server.GetRoutes().HandlePathPrefixFn(proxyHandler.PathPrefix.Get(), proxyHandler.HandleProxy())
 
-	// Register SSE routes before static handler
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/sse", sseServer.OnRequest)
-
-	// Register media streaming routes before static handler
-	mediaHandler.SetPathPrefix("/stream")
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/stream", mediaHandler.HandleMedia())
-
-	// Register proxy routes before static handler
-	proxyHandler.SetPathPrefix("/proxy")
-	server.GetRoutes().ForwardPathPrefixFn("/xt23/proxy", proxyHandler.HandleProxy())
-
+	// === WebSocket Handler ===
 	wsServer := websock.NewWebSock()
-
-	// Create WebSocket handler
 	wsHandler := handlerws.NewWsHandler(wsServer, "demo-ws")
 	wsHandler.SetPathPrefix("/xt23/ws")
 
@@ -121,7 +87,23 @@ func main() {
 	}
 	wsHandler.Run()
 
-	xappHandler.ServeStatic("/", embedAdapter)
+	// == XApp Handler Setup ===
+	sway := websway.NewWebSway()
+	xappHandler := wbx.NewXAppHandler(sway)
+
+	embedAdapter := embedfs.NewEmbedFS(&clientInstance.Content)
+	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
+	sway.FsProvider = embedAdapter
+	sway.SecurityHeaders = true
+	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
+	server.GetRoutes().HandlePathPrefixFn("/", sway.OnRequest)
+
+	// Create XApp handler for serving HTML applications
+
+	xappHandler.SetPathPrefix("xt23")
+	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
+
+	xappHandler.Run()
 
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")

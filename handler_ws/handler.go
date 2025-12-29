@@ -45,9 +45,7 @@ func (wsh *WsHandler) Run() {
 		panic("No WebLite server available to register WebSocket handler")
 	}
 
-	println("xxxx", wsh.PathPrefix.Suffix("/p"))
 	server.GetRoutes().ForwardPathPrefixFn(wsh.PathPrefix.Suffix("p"), func(w http.ResponseWriter, r *http.Request) {
-		println("path", r.URL.Path)
 		if strings.HasSuffix(r.URL.Path, ".js") {
 			data, _ := efs.ReadFile("app-dist" + r.URL.Path)
 			hl1.Helpers.WriteJsBytes(w, data)
