@@ -1,30 +1,38 @@
 package weblite
 
 import (
+	"embed"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
+	hl1 "github.com/go-xlite/wbx/helpers"
+	"github.com/go-xlite/wbx/webtrail"
 )
+
+//go:embed app-dist/*
+var content embed.FS
 
 // ApiHandler is optimized for serving API requests, typically returning JSON data
 // Features: JSON serialization, CORS support, request validation, error handling
 type ApiHandler struct {
 	*handler_role.HandlerRole
 	Timeout time.Duration
+	trail   *webtrail.WebTrail
 }
 
 // NewApiHandler creates a new API handler with sensible defaults
-func NewApiHandler(wl handler_role.IHandler) *ApiHandler {
+func NewApiHandler(server *webtrail.WebTrail) *ApiHandler {
 	sr := handler_role.NewHandler()
-	sr.SetPathPrefix("/api")
 	sr.CORS.EnableCORS = true
 	sr.CORS.CORSOrigins = []string{"*"}
 
 	return &ApiHandler{
 		HandlerRole: sr,
 		Timeout:     30 * time.Second,
+		trail:       server,
 	}
 }
 
@@ -97,21 +105,22 @@ func (as *ApiHandler) HandlePOST(path string, handler func(r *http.Request, body
 	})
 }
 
-// Response helper functions
+func (as *ApiHandler) Run() {
+	// No-op for now; could be used to initialize resources if needed
+	as.trail.GetRoutes().ForwardPathPrefixFn(as.PathPrefix.Suffix("p"), func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".js") {
+			data, _ := content.ReadFile("app-dist" + r.URL.Path)
+			hl1.Helpers.WriteJsBytes(w, data)
+			return
+		}
+		hl1.Helpers.WriteNotFound(w)
+	})
 
-// WriteJSON writes a JSON response with the given status code
-func WriteJSON(w http.ResponseWriter, statusCode int, data any) error {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.WriteHeader(statusCode)
-	return json.NewEncoder(w).Encode(data)
-}
+	as.trail.GetRoutes().ForwardPathPrefixFn(as.PathPrefix.Get(), func(w http.ResponseWriter, r *http.Request) {
+		as.trail.OnRequest(w, r)
+	})
 
-// WriteError writes an error response as JSON
-func WriteError(w http.ResponseWriter, statusCode int, message string) error {
-	return WriteJSON(w, statusCode, map[string]any{
-		"error":   true,
-		"message": message,
-		"status":  statusCode,
+	as.trail.GetRoutes().ForwardPathFn("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, as.PathPrefix.Suffix("/"), http.StatusMovedPermanently)
 	})
 }

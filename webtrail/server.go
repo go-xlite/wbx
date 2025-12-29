@@ -6,11 +6,6 @@ import (
 	"github.com/go-xlite/wbx/comm"
 )
 
-// WebTrail represents a backend server component that handles requests
-// after they've been proxied from the main server. Routes are registered
-// without the proxy prefix since the main server strips it before forwarding.
-//
-// Example: Main server proxies /api/* to WebTrail -> WebTrail sees /users, /orders, etc.
 type WebTrail struct {
 	*comm.ServerCore
 	// Note: The base path is NOT used in actual routing, only for helper methods
@@ -28,8 +23,6 @@ func NewWebtrail() *WebTrail {
 	return wt
 }
 
-// OnRequest handles an incoming HTTP request using the registered routes
-// This is the main entry point when the main server forwards a request
 func (wt *WebTrail) OnRequest(w http.ResponseWriter, r *http.Request) {
 	wt.Mux.ServeHTTP(w, r)
 }
@@ -43,8 +36,6 @@ func (wt *WebTrail) MakePath(suffix string) string {
 	return wt.PathBase + suffix
 }
 
-// SetNotFoundHandler sets a custom 404 handler
-func (wt *WebTrail) SetNotFoundHandler(handler http.HandlerFunc) {
-	wt.NotFound = handler
-	wt.Mux.NotFoundHandler = handler
+func (wt *WebTrail) ServeData(w http.ResponseWriter, r *http.Request) {
+
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
@@ -20,6 +21,7 @@ import (
 	"github.com/go-xlite/wbx/websock"
 	"github.com/go-xlite/wbx/webstream"
 	websway "github.com/go-xlite/wbx/websway"
+	webtrail "github.com/go-xlite/wbx/webtrail"
 )
 
 func main() {
@@ -104,6 +106,15 @@ func main() {
 	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
 
 	xappHandler.Run()
+
+	wbtServersApi := webtrail.NewWebtrail()
+	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/list", func(w http.ResponseWriter, r *http.Request) {
+		// Handler logic here
+		hl1.Helpers.WriteJSON(w, http.StatusOK, weblite.Provider.Servers.ListInfos())
+	})
+	apiHandler := wbx.NewApiHandler(wbtServersApi)
+	apiHandler.SetPathPrefix("/xt23/trail")
+	apiHandler.Run()
 
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")
