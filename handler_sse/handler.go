@@ -9,7 +9,7 @@ import (
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
 	hl1 "github.com/go-xlite/wbx/helpers"
-	"github.com/go-xlite/wbx/webcast"
+	"github.com/go-xlite/wbx/server/webcast"
 )
 
 //go:embed app-dist/*

@@ -7,8 +7,8 @@ import (
 
 	wsh "github.com/go-xlite/wbx/handler/ws"
 	hl1 "github.com/go-xlite/wbx/helpers"
+	"github.com/go-xlite/wbx/server/websock"
 	"github.com/go-xlite/wbx/weblite"
-	"github.com/go-xlite/wbx/websock"
 )
 
 //go:embed app-dist/*

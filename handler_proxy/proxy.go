@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/webproxy"
+	"github.com/go-xlite/wbx/server/webproxy"
 )
 
 // ProxyHandler provides reverse proxy functionality

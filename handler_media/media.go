@@ -6,7 +6,7 @@ import (
 	"time"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/webstream"
+	"github.com/go-xlite/wbx/server/webstream"
 )
 
 // MediaHandler handles video and audio streaming with range request support

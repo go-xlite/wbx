@@ -10,12 +10,12 @@ import (
 	ws "github.com/go-xlite/wbx/handler_ws"
 	xapp "github.com/go-xlite/wbx/handler_xapp"
 	hl1 "github.com/go-xlite/wbx/helpers"
-	wc "github.com/go-xlite/wbx/webcast"
+	wc "github.com/go-xlite/wbx/server/webcast"
+	"github.com/go-xlite/wbx/server/webproxy"
+	wss "github.com/go-xlite/wbx/server/websock"
+	"github.com/go-xlite/wbx/server/webstream"
+	wt "github.com/go-xlite/wbx/server/webtrail"
 	wl "github.com/go-xlite/wbx/weblite"
-	"github.com/go-xlite/wbx/webproxy"
-	wss "github.com/go-xlite/wbx/websock"
-	"github.com/go-xlite/wbx/webstream"
-	wt "github.com/go-xlite/wbx/webtrail"
 )
 
 var WebLites = wl.Provider

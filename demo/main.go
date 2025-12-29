@@ -3,31 +3,42 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"time"
 
 	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
 	embedfs "github.com/go-xlite/wbx/adapter_fs/embed_fs"
 	osfs "github.com/go-xlite/wbx/adapter_fs/os_fs"
+	server_data "github.com/go-xlite/wbx/debug/api/server_data"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
 	client "github.com/go-xlite/wbx/demo/client"
 	handlermedia "github.com/go-xlite/wbx/handler_media"
 	handlerproxy "github.com/go-xlite/wbx/handler_proxy"
 	handlersse "github.com/go-xlite/wbx/handler_sse"
 	handlerws "github.com/go-xlite/wbx/handler_ws"
-	"github.com/go-xlite/wbx/webcast"
+	"github.com/go-xlite/wbx/server/webcast"
+	"github.com/go-xlite/wbx/server/webproxy"
+	"github.com/go-xlite/wbx/server/websock"
+	"github.com/go-xlite/wbx/server/webstream"
+	websway "github.com/go-xlite/wbx/server/websway"
+	webtrail "github.com/go-xlite/wbx/server/webtrail"
 	"github.com/go-xlite/wbx/weblite"
-	"github.com/go-xlite/wbx/webproxy"
-	"github.com/go-xlite/wbx/websock"
-	"github.com/go-xlite/wbx/webstream"
-	websway "github.com/go-xlite/wbx/websway"
-	webtrail "github.com/go-xlite/wbx/webtrail"
 )
+
+type ScopePrefix struct {
+	Prefix string
+}
+type DomainPrefix struct {
+	Scope ScopePrefix
+}
+type HostPrefix struct {
+	// this is a prefix for services
+}
 
 func main() {
 	// Create weblite server using provider
 	server := weblite.Provider.Servers.New("demo")
 	server.SetPort("8080")
+	server.SSL.SetFromFiles("../../certs/cert", "../../certs/priv")
 	// Initialize the application with embedded files
 	clientInstance := client.NewClient()
 
@@ -98,7 +109,6 @@ func main() {
 	sway.FsProvider = embedAdapter
 	sway.SecurityHeaders = true
 	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
-	server.GetRoutes().HandlePathPrefixFn("/", sway.OnRequest)
 
 	// Create XApp handler for serving HTML applications
 
@@ -107,15 +117,21 @@ func main() {
 
 	xappHandler.Run()
 
+	// Initialize server data provider
+	serversData := server_data.NewServersDataGen()
+	serversData.Initialize(80)
+
+	// Setup API routes
 	wbtServersApi := webtrail.NewWebtrail()
-	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/list", func(w http.ResponseWriter, r *http.Request) {
-		// Handler logic here
-		hl1.Helpers.WriteJSON(w, http.StatusOK, weblite.Provider.Servers.ListInfos())
-	})
+	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/list", serversData.HandleListRequest)
+	wbtServersApi.GetRoutes().HandlePathFn("/servers/i/{id}/details", serversData.HandleDetailsRequest)
+	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/filters", serversData.HandleFiltersRequest)
+
 	apiHandler := wbx.NewApiHandler(wbtServersApi)
 	apiHandler.SetPathPrefix("/xt23/trail")
 	apiHandler.Run()
 
+	server.GetRoutes().HandlePathPrefixFn("/", sway.OnRequest)
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")
 

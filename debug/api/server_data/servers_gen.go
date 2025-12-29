@@ -2,9 +2,27 @@ package server_data
 
 import (
 	"fmt"
+	"net/http"
 
 	datagen "github.com/go-xlite/wbx/debug/api/datagen"
+	hl1 "github.com/go-xlite/wbx/helpers"
+	"github.com/gorilla/mux"
 )
+
+// InstanceListItem is optimized for displaying in lists
+type InstanceListItem struct {
+	ID          string `json:"ID"`
+	Hostname    string `json:"Hostname"`
+	State       string `json:"State"`
+	Region      string `json:"Region"`
+	Zone        string `json:"Zone"`
+	LaunchedAt  string `json:"LaunchedAt"`
+	Uptime      string `json:"Uptime"`
+	CPUCores    int    `json:"CPUCores"`
+	RAMTotalGB  int    `json:"RAMTotalGB"`
+	PublicIPv4  string `json:"PublicIPv4"`
+	PrivateIPv4 string `json:"PrivateIPv4"`
+}
 
 type ServerInstanceListItem struct {
 	// this is to display simplified data in lists
@@ -92,6 +110,15 @@ type NetworkNIC struct {
 
 type ServersDataGen struct {
 	*datagen.DataGen
+	instances    []*ServerInstance
+	instanceList []*InstanceListItem
+	listData     *ListResponse
+}
+
+// ListResponse contains column mapping and positional data
+type ListResponse struct {
+	Columns []string        `json:"columns"`
+	Data    [][]interface{} `json:"data"`
 }
 
 func NewServersDataGen() *ServersDataGen {
@@ -99,6 +126,153 @@ func NewServersDataGen() *ServersDataGen {
 		DataGen: datagen.NewDataGen(),
 	}
 }
+
+// Initialize generates all instances and prepares the optimized list
+func (sdg *ServersDataGen) Initialize(count int) {
+	sdg.instances = sdg.GenerateInstances(count)
+	sdg.instanceList = sdg.transformToListView(sdg.instances)
+	sdg.listData = sdg.transformToPositionalData(sdg.instanceList)
+}
+
+// transformToListView creates optimized list items from full instances
+func (sdg *ServersDataGen) transformToListView(instances []*ServerInstance) []*InstanceListItem {
+	list := make([]*InstanceListItem, 0, len(instances))
+	for _, inst := range instances {
+		item := &InstanceListItem{
+			ID:         inst.ID,
+			Hostname:   inst.Hostname,
+			State:      inst.State,
+			Region:     inst.Region,
+			Zone:       inst.Zone,
+			LaunchedAt: inst.LaunchedAt,
+			Uptime:     inst.Uptime,
+		}
+
+		// Extract CPU cores
+		if inst.CPUInfo != nil {
+			item.CPUCores = inst.CPUInfo.Cores
+		}
+
+		// Extract RAM total
+		if inst.RAMInfo != nil {
+			item.RAMTotalGB = inst.RAMInfo.TotalGB
+		}
+
+		// Extract IPs from first NIC
+		if len(inst.NetworkNICs) > 0 {
+			item.PublicIPv4 = inst.NetworkNICs[0].IPv4
+			if len(inst.NetworkNICs) > 1 {
+				item.PrivateIPv4 = inst.NetworkNICs[1].IPv4
+			}
+		}
+
+		list = append(list, item)
+	}
+	return list
+}
+
+// transformToPositionalData converts list items to positional array format
+func (sdg *ServersDataGen) transformToPositionalData(list []*InstanceListItem) *ListResponse {
+	columns := []string{
+		"ID", "Hostname", "State", "Region", "Zone",
+		"LaunchedAt", "Uptime", "CPUCores", "RAMTotalGB",
+		"PublicIPv4", "PrivateIPv4",
+	}
+
+	data := make([][]interface{}, 0, len(list))
+	for _, item := range list {
+		row := []interface{}{
+			item.ID,
+			item.Hostname,
+			item.State,
+			item.Region,
+			item.Zone,
+			item.LaunchedAt,
+			item.Uptime,
+			item.CPUCores,
+			item.RAMTotalGB,
+			item.PublicIPv4,
+			item.PrivateIPv4,
+		}
+		data = append(data, row)
+	}
+
+	return &ListResponse{
+		Columns: columns,
+		Data:    data,
+	}
+}
+
+// HandleListRequest returns the optimized list view
+func (sdg *ServersDataGen) HandleListRequest(w http.ResponseWriter, r *http.Request) {
+	hl1.Helpers.WriteJSON(w, http.StatusOK, sdg.listData)
+}
+
+// HandleDetailsRequest returns full instance data by ID
+func (sdg *ServersDataGen) HandleDetailsRequest(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+	for _, inst := range sdg.instances {
+		if inst.ID == id {
+			hl1.Helpers.WriteJSON(w, http.StatusOK, inst)
+			return
+		}
+	}
+	http.Error(w, "Instance not found", http.StatusNotFound)
+}
+
+// FilterOptions contains all available filter values
+type FilterOptions struct {
+	Regions       []string `json:"regions"`
+	Zones         []string `json:"zones"`
+	States        []string `json:"states"`
+	InstanceTypes []string `json:"instanceTypes"`
+}
+
+// HandleFiltersRequest returns available filter options
+func (sdg *ServersDataGen) HandleFiltersRequest(w http.ResponseWriter, r *http.Request) {
+	regionsMap := make(map[string]bool)
+	zonesMap := make(map[string]bool)
+	statesMap := make(map[string]bool)
+	typesMap := make(map[string]bool)
+
+	for _, inst := range sdg.instanceList {
+		if inst.Region != "" {
+			regionsMap[inst.Region] = true
+		}
+		if inst.Zone != "" {
+			zonesMap[inst.Zone] = true
+		}
+		if inst.State != "" {
+			statesMap[inst.State] = true
+		}
+		// Generate instance type string
+		if inst.CPUCores > 0 && inst.RAMTotalGB > 0 {
+			instanceType := fmt.Sprintf("%d vCPU, %d GB RAM", inst.CPUCores, inst.RAMTotalGB)
+			typesMap[instanceType] = true
+		}
+	}
+
+	// Convert maps to sorted slices
+	filters := FilterOptions{
+		Regions:       mapKeysToSlice(regionsMap),
+		Zones:         mapKeysToSlice(zonesMap),
+		States:        mapKeysToSlice(statesMap),
+		InstanceTypes: mapKeysToSlice(typesMap),
+	}
+
+	hl1.Helpers.WriteJSON(w, http.StatusOK, filters)
+}
+
+// Helper function to convert map keys to slice
+func mapKeysToSlice(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func (sdg *ServersDataGen) GenerateInstances(count int) []*ServerInstance {
 	records := make([]*ServerInstance, 0, count)
 	for i := 0; i < count; i++ {

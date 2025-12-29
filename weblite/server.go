@@ -243,6 +243,7 @@ type WebLite struct {
 	SSL                 *SSL
 	CloudFlareOptimized bool
 	DomainValidator     *DomainValidator
+	HTTPSRedirect       bool // Automatically redirect HTTP to HTTPS when SSL is enabled
 
 	// Server management
 	servers []*http.Server
@@ -256,11 +257,12 @@ func NewWebLite(name string) *WebLite {
 		Name:                name,
 		Mux:                 mux.NewRouter(),
 		Port:                "8080",
-		BindAddr:            []string{"0.0.0.0", "::"}, // Default to dual-stack (IPv4 + IPv6)
+		BindAddr:            []string{"::"}, // Default to IPv6 (typically binds to both IPv4 and IPv6)
 		servers:             make([]*http.Server, 0),
 		CloudFlareOptimized: false,
 		SSL:                 &SSL{},
 		DomainValidator:     NewDomainValidator(),
+		HTTPSRedirect:       true, // Enable HTTPS redirect by default
 	}
 	wl.Routes = routes.NewRoutes(wl.Mux)
 	return wl
@@ -306,6 +308,14 @@ func (wl *WebLite) SetBindAddrsWithPorts(defaultPort string, addrs ...string) *W
 	return wl
 }
 
+// SetHTTPSRedirect enables or disables automatic HTTP to HTTPS redirection
+func (wl *WebLite) SetHTTPSRedirect(enable bool) *WebLite {
+	wl.mu.Lock()
+	defer wl.mu.Unlock()
+	wl.HTTPSRedirect = enable
+	return wl
+}
+
 // IsRunning returns whether the server is currently running
 func (wl *WebLite) IsRunning() bool {
 	wl.mu.RLock()
@@ -332,26 +342,72 @@ func (wl *WebLite) Start() error {
 	}()
 
 	// Start servers for all bind addresses
-	errChan := make(chan error, len(wl.BindAddr))
+	type bindResult struct {
+		addr string
+		err  error
+	}
+	resultChan := make(chan bindResult, len(wl.BindAddr))
 	var wg sync.WaitGroup
 
 	for _, addr := range wl.BindAddr {
 		wg.Add(1)
 		go func(bindAddr string) {
 			defer wg.Done()
-			if err := wl.startServer(bindAddr); err != nil && err != http.ErrServerClosed {
-				errChan <- err
+			err := wl.startServer(bindAddr)
+			if err != nil && err != http.ErrServerClosed {
+				resultChan <- bindResult{addr: bindAddr, err: err}
+			} else if err == nil {
+				resultChan <- bindResult{addr: bindAddr, err: nil}
 			}
 		}(addr)
 	}
 
 	// Wait for all servers to complete
 	wg.Wait()
-	close(errChan)
+	close(resultChan)
 
-	// Return first error if any
-	for err := range errChan {
-		return err
+	// Collect results
+	var successAddrs []string
+	var errors []bindResult
+	for result := range resultChan {
+		if result.err == nil {
+			successAddrs = append(successAddrs, result.addr)
+		} else {
+			errors = append(errors, result)
+		}
+	}
+
+	// If we have errors, check if they can be safely ignored
+	for _, errResult := range errors {
+		// Check if this is an IPv4 bind failure after IPv6 success
+		// IPv6 :: often binds to both IPv4 and IPv6, so IPv4 0.0.0.0 bind may fail
+		canIgnore := false
+
+		// Check if error is "address already in use"
+		if strings.Contains(errResult.err.Error(), "address already in use") ||
+			strings.Contains(errResult.err.Error(), "bind: address already in use") {
+			// Check if the failed address is IPv4 wildcard
+			isIPv4Wildcard := strings.HasPrefix(errResult.addr, "0.0.0.0")
+
+			// Check if we have a successful IPv6 wildcard bind
+			hasIPv6Success := false
+			for _, successAddr := range successAddrs {
+				if successAddr == "::" || strings.HasPrefix(successAddr, "::") {
+					hasIPv6Success = true
+					break
+				}
+			}
+
+			// If IPv4 bind failed but IPv6 succeeded, assume dual-stack and ignore
+			if isIPv4Wildcard && hasIPv6Success {
+				canIgnore = true
+				fmt.Printf("WebLite [%s] IPv4 bind on %s failed (address in use), but IPv6 is bound - assuming dual-stack mode\n", wl.Name, errResult.addr)
+			}
+		}
+
+		if !canIgnore {
+			return errResult.err
+		}
 	}
 
 	return nil
@@ -376,6 +432,25 @@ func (wl *WebLite) startServer(bindAddr string) error {
 		handler = wl.DomainValidator.Middleware(handler)
 	}
 
+	wl.mu.Lock()
+	sslConfigured := wl.SSL.IsConfigured()
+	cloudFlareOptimized := wl.CloudFlareOptimized
+	httpsRedirect := wl.HTTPSRedirect
+	wl.mu.Unlock()
+
+	// Wrap handler with HTTPS redirect middleware if SSL is configured and redirect is enabled
+	// This handles HTTP requests sent directly to the HTTPS port
+	if sslConfigured && httpsRedirect {
+		handler = wrapWithHTTPSRedirect(handler)
+	}
+
+	// Wrap handler with HTTP/3 Alt-Svc advertisement if HTTP/3 is enabled and SSL is configured
+	if wl.isHTTP3Enabled() && sslConfigured {
+		if port := getHTTP3Port(addr); port != "" {
+			handler = wrapWithHTTP3AltSvc(handler, port)
+		}
+	}
+
 	server := &http.Server{
 		Addr:    addr,
 		Handler: handler,
@@ -383,13 +458,14 @@ func (wl *WebLite) startServer(bindAddr string) error {
 
 	wl.mu.Lock()
 	wl.servers = append(wl.servers, server)
-	sslConfigured := wl.SSL.IsConfigured()
-	cloudFlareOptimized := wl.CloudFlareOptimized
 	wl.mu.Unlock()
 
 	fmt.Printf("WebLite [%s] starting on %s", wl.Name, addr)
 	if cloudFlareOptimized {
 		fmt.Printf(" (CloudFlare optimized)")
+	}
+	if wl.isHTTP3Enabled() && sslConfigured {
+		fmt.Printf(" (with HTTP/3)")
 	}
 	fmt.Println()
 
@@ -420,17 +496,99 @@ func (wl *WebLite) startServer(bindAddr string) error {
 	// Standard listener (no CloudFlare optimizations)
 	// Configure TLS if SSL is configured
 	if sslConfigured {
+		// If HTTPS redirect is enabled, start HTTP redirect server
+		if httpsRedirect {
+			// Calculate HTTP port (HTTPS port - 363, or default to 80)
+			httpPort := wl.calculateHTTPPort()
+			httpAddr := net.JoinHostPort(bindAddr, httpPort)
+
+			// Start HTTP redirect server in background
+			go wl.startHTTPRedirectServer(httpAddr, wl.Port)
+		}
+
+		var tlsConfig *tls.Config
+		var err error
+
 		if wl.SSL.HasData() {
 			// Use raw data - must set TLSConfig
-			tlsConfig, err := wl.SSL.GetTLSConfig()
+			tlsConfig, err = wl.SSL.GetTLSConfig()
 			if err != nil {
 				return err
 			}
 			server.TLSConfig = tlsConfig
-			return server.ListenAndServeTLS("", "")
+		} else if wl.SSL.HasFiles() {
+			// Get TLS config for HTTP/3
+			tlsConfig, err = wl.SSL.GetTLSConfig()
+			if err != nil {
+				return err
+			}
 		}
 
-		// Use file paths
+		// If HTTPS redirect is enabled, use mixed protocol listener
+		// This handles HTTP requests sent directly to the HTTPS port
+		if httpsRedirect && tlsConfig != nil {
+			// Create TCP listener
+			ln, err := net.Listen("tcp", addr)
+			if err != nil {
+				return fmt.Errorf("failed to create listener: %w", err)
+			}
+			defer ln.Close()
+
+			// Wrap with mixed protocol listener
+			mixedLn := &mixedProtocolListener{
+				Listener:  ln,
+				tlsConfig: tlsConfig,
+				httpsPort: wl.Port,
+			}
+
+			// Wrap with TLS
+			tlsLn := tls.NewListener(mixedLn, tlsConfig)
+
+			// Start HTTP/3 if enabled
+			if wl.isHTTP3Enabled() {
+				go func() {
+					if err := wl.startHTTP3Server(addr, tlsConfig, handler); err != nil {
+						fmt.Printf("HTTP/3 server error: %v\n", err)
+					}
+				}()
+			}
+
+			// Serve with mixed listener
+			return server.Serve(tlsLn)
+		}
+
+		// Start HTTP/3 server if enabled (runs in parallel with HTTP/1.1/2.0)
+		if wl.isHTTP3Enabled() && tlsConfig != nil {
+			// Start HTTP/3 server in a goroutine
+			errChan := make(chan error, 2)
+
+			go func() {
+				if err := wl.startHTTP3Server(addr, tlsConfig, handler); err != nil {
+					errChan <- fmt.Errorf("HTTP/3 server error: %w", err)
+				}
+			}()
+
+			// Start HTTP/1.1/2.0 server
+			go func() {
+				var err error
+				if wl.SSL.HasData() {
+					err = server.ListenAndServeTLS("", "")
+				} else if wl.SSL.HasFiles() {
+					err = server.ListenAndServeTLS(wl.SSL.CertFilePath, wl.SSL.KeyFilePath)
+				}
+				if err != nil && err != http.ErrServerClosed {
+					errChan <- fmt.Errorf("HTTP/1.1/2.0 server error: %w", err)
+				}
+			}()
+
+			// Wait for first error (blocking)
+			return <-errChan
+		}
+
+		// HTTP/3 not enabled, just start regular HTTPS
+		if wl.SSL.HasData() {
+			return server.ListenAndServeTLS("", "")
+		}
 		if wl.SSL.HasFiles() {
 			return server.ListenAndServeTLS(wl.SSL.CertFilePath, wl.SSL.KeyFilePath)
 		}
@@ -747,4 +905,119 @@ func matchWildcardSegment(pattern, segment string) bool {
 	}
 
 	return true
+}
+
+// parseHostPort splits a network address of the form "host:port" or "[host]:port"
+// into host and port. This is similar to net.SplitHostPort but doesn't return an error
+// for addresses without ports.
+func parseHostPort(addr string) (host, port string, err error) {
+	// Try standard parsing first
+	h, p, err := net.SplitHostPort(addr)
+	if err == nil {
+		return h, p, nil
+	}
+
+	// If it failed, it might be because there's no port
+	// Return the address as host with empty port
+	return addr, "", nil
+}
+
+// calculateHTTPPort returns the HTTP port to use for redirects
+// If HTTPS port is standard (443), use 80
+// Otherwise, calculate as HTTPS_PORT - 363 (8080 -> 7717, 8443 -> 8080)
+func (wl *WebLite) calculateHTTPPort() string {
+	wl.mu.RLock()
+	httpsPort := wl.Port
+	wl.mu.RUnlock()
+
+	if httpsPort == "443" || httpsPort == "" {
+		return "80"
+	}
+
+	// For common dev ports, use sensible defaults
+	switch httpsPort {
+	case "8443":
+		return "8080"
+	case "9443":
+		return "9080"
+	case "8080":
+		return "7717" // 8080 - 363
+	default:
+		// Try to parse as number and subtract 363
+		var portNum int
+		if _, err := fmt.Sscanf(httpsPort, "%d", &portNum); err == nil && portNum > 363 {
+			return fmt.Sprintf("%d", portNum-363)
+		}
+		return "80" // Fallback
+	}
+}
+
+// startHTTPRedirectServer starts an HTTP server that redirects all traffic to HTTPS
+func (wl *WebLite) startHTTPRedirectServer(httpAddr, httpsPort string) {
+	redirectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract host without port
+		host := r.Host
+		if h, _, err := net.SplitHostPort(r.Host); err == nil {
+			host = h
+		}
+
+		// Build HTTPS URL
+		var httpsURL string
+		if httpsPort == "443" {
+			httpsURL = fmt.Sprintf("https://%s%s", host, r.RequestURI)
+		} else {
+			httpsURL = fmt.Sprintf("https://%s:%s%s", host, httpsPort, r.RequestURI)
+		}
+
+		// Permanent redirect
+		http.Redirect(w, r, httpsURL, http.StatusMovedPermanently)
+	})
+
+	httpServer := &http.Server{
+		Addr:    httpAddr,
+		Handler: redirectHandler,
+	}
+
+	wl.mu.Lock()
+	wl.servers = append(wl.servers, httpServer)
+	wl.mu.Unlock()
+
+	fmt.Printf("WebLite [%s] HTTP->HTTPS redirect server starting on %s\n", wl.Name, httpAddr)
+
+	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		fmt.Printf("WebLite [%s] HTTP redirect server error: %v\n", wl.Name, err)
+	}
+}
+
+// wrapWithHTTPSRedirect wraps a handler to redirect HTTP requests to HTTPS
+// This handles the case where someone sends an HTTP request to an HTTPS port
+func wrapWithHTTPSRedirect(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// If TLS is nil, this is an HTTP request on an HTTPS port
+		if r.TLS == nil {
+			// Extract host without port
+			host := r.Host
+			if h, _, err := net.SplitHostPort(r.Host); err == nil {
+				host = h
+			}
+
+			// Get the port from the request (the HTTPS port they're hitting)
+			_, port, _ := net.SplitHostPort(r.Host)
+
+			// Build HTTPS URL
+			var httpsURL string
+			if port == "" || port == "443" {
+				httpsURL = fmt.Sprintf("https://%s%s", host, r.RequestURI)
+			} else {
+				httpsURL = fmt.Sprintf("https://%s:%s%s", host, port, r.RequestURI)
+			}
+
+			// Permanent redirect
+			http.Redirect(w, r, httpsURL, http.StatusMovedPermanently)
+			return
+		}
+
+		// Normal HTTPS request, pass through
+		handler.ServeHTTP(w, r)
+	})
 }

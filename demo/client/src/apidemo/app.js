@@ -1,1 +1,0 @@
-import { pathPrefix } from '../../lib/site_core.js';

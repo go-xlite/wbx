@@ -5,7 +5,7 @@ import (
 
 	"github.com/go-xlite/wbx/comm/handler_role"
 	wsi "github.com/go-xlite/wbx/handler-server/ws"
-	"github.com/go-xlite/wbx/websock"
+	"github.com/go-xlite/wbx/server/websock"
 )
 
 // WebSocketStats represents statistics for a WebSocket handler
