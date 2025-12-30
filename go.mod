@@ -1,10 +1,9 @@
 module github.com/go-xlite/wbx
 
-go 1.24
-
-toolchain go1.24.5
+go 1.24.5
 
 require (
+	github.com/go-xlite/rtx v0.0.0-20251230222956-c739751fa9f7
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/quic-go/quic-go v0.58.0

@@ -63,7 +63,7 @@ func (sh *SSEHandler) HandleSSE(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (sh *SSEHandler) Run() {
+func (sh *SSEHandler) Init() {
 
 	sh.webcast.GetRoutes().ForwardPathPrefixFn(sh.PathPrefix.Suffix("p"), func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {

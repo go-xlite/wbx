@@ -7,7 +7,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/quic-go/quic-go/http3"
 )
@@ -54,17 +53,4 @@ func (wl *WebLite) startHTTP3Server(addr string, tlsConfig *tls.Config, handler 
 // isHTTP3Enabled returns true when HTTP/3 is compiled in
 func (wl *WebLite) isHTTP3Enabled() bool {
 	return true
-}
-
-// getHTTP3Port extracts the port number from an address string
-func getHTTP3Port(addr string) string {
-	_, port, err := parseHostPort(addr)
-	if err != nil || port == "" {
-		return ""
-	}
-	// Validate it's a number
-	if _, err := strconv.Atoi(port); err != nil {
-		return ""
-	}
-	return port
 }

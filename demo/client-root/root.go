@@ -1,15 +1,21 @@
 package clientroot
 
-import "embed"
+import (
+	"embed"
+
+	embed_fs "github.com/go-xlite/wbx/comm/adapter_fs/embed_fs"
+)
 
 //go:embed dist/*
 var content embed.FS
 
 type ClientRoot struct {
-	Content embed.FS
+	Content *embed_fs.EmbedFS
 	// Application specific fields can be added here
 }
 
 func NewClientRoot() *ClientRoot {
-	return &ClientRoot{Content: content}
+	clr := &ClientRoot{Content: embed_fs.NewEmbedFS(&content)}
+	clr.Content.SetBasePath("dist")
+	return clr
 }

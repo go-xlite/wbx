@@ -5,8 +5,8 @@ import (
 	"log"
 	"time"
 
+	rtx "github.com/go-xlite/rtx"
 	wbx "github.com/go-xlite/wbx"
-	embedfs "github.com/go-xlite/wbx/comm/adapter_fs/embed_fs"
 	osfs "github.com/go-xlite/wbx/comm/adapter_fs/os_fs"
 	server_data "github.com/go-xlite/wbx/debug/api/server_data"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
@@ -16,7 +16,6 @@ import (
 	webapp "github.com/go-xlite/wbx/roots/webapp"
 	servers "github.com/go-xlite/wbx/servers"
 	"github.com/go-xlite/wbx/servers/websock"
-	websway "github.com/go-xlite/wbx/servers/websway"
 	"github.com/go-xlite/wbx/weblite"
 )
 
@@ -33,20 +32,29 @@ type HostPrefix struct {
 func main() {
 	// Create weblite server using provider
 	server := weblite.Provider.Servers.New("demo")
-	server.SetPort("8080")
-	server.SSL.SetFromFiles("../../certs/cert", "../../certs/priv")
-	// Initialize the application with embedded files
-	clientInstance := client.NewClient()
+	server.AddPortListener(map[string]string{
+		"protocol":            "http",
+		"ports":               "8090,8091",
+		"addresses":           "0.0.0.0,[::]",
+		"https_redirect_port": "8080",
+	})
+	server.AddPortListener(map[string]string{
+		"protocol":        "https",
+		"ports":           "8080",
+		"addresses":       "0.0.0.0,[::]",
+		"ssl_cert_path":   "../../certs/cert",
+		"ssl_key_path":    "../../certs/priv",
+		"domains_allowed": "localhost,pong.gtn.one",
+	})
 
-	//debugfs.PrintEmbeddedFiles(clientInstance.Content, "[DEBUG] Embedded files:")
-
+	// === Server-Sent Events (SSE) ===
 	// Create webcast server for SSE connections
 	sseServer := servers.NewWebCast()
 	// Create SSE handler
 	sseHandler := handlers.NewSSEHandler(sseServer)
 	sseHandler.SetPathPrefix("/xt23/sse")
 	server.GetRoutes().HandlePathPrefixFn(sseHandler.PathPrefix.Get(), sseServer.OnRequest)
-	sseHandler.Run()
+	sseHandler.Init()
 	// Start dummy SSE event streamer
 	debugsse.StartDummyStreamer(sseHandler, 3*time.Second)
 
@@ -110,34 +118,33 @@ func main() {
 	apiHandler.SetPathPrefix("/xt23/trail")
 	apiHandler.Run()
 
-	// == Sway Handler Setup ===
-	sway := websway.NewWebSway()
-	swayHandler := wbx.NewSwayHandler(sway)
+	// Initialize the application with embedded files
+	clientInstance := client.NewClient()
 
-	embedAdapter := embedfs.NewEmbedFS(&clientInstance.Content)
-	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
-	sway.FsProvider = embedAdapter
+	// == Sway Handler Setup ===
+	sway := servers.NewWebSway()
+	sway.FsProvider = clientInstance.Content
 	sway.SecurityHeaders = true
 	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
 
 	// Create Sway handler for serving HTML applications
-
+	swayHandler := wbx.NewSwayHandler(sway)
 	swayHandler.SetPathPrefix("/xt23")
 	swayHandler.AuthSkippedPaths = []string{} // No auth for demo
 	swayHandler.Run(server)
 
 	clr := clientroot.NewClientRoot()
 	app := webapp.NewWebApp()
-	rootfs := embedfs.NewEmbedFS(&clr.Content)
-	rootfs.SetBasePath("dist")
-	app.Fs = rootfs
+	app.Fs = clr.Content
 	app.DefaultHome = "/xt23/home"
 	server.GetRoutes().HandlePathPrefixFn("/", app.HandleRequest)
 
-	// Start the server
-	log.Println("Server starting on http://localhost:8080")
+	go func() {
+		if err := server.Start(); err != nil {
+			//log.Fatalf("Server failed to start: %v", err)
+			rtx.Rtm.ExitWithErr(1, err)
+		}
+	}()
 
-	if err := server.Start(); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
-	}
+	rtx.Rtm.WaitForSIGTERM()
 }
