@@ -1,4 +1,6 @@
 import fs from "fs";
+import { transform } from 'lightningcss';
+import { IndexBuilder } from "../../lib/builder.js";
 
 
 await Bun.build({
@@ -16,5 +18,17 @@ await Bun.build({
   splitting: false
 });
 
-fs.copyFileSync("./src/sse-test/index.html", "./dist/sse-test/index.html");
-fs.copyFileSync("./src/sse-test/styles.css", "./dist/sse-test/styles.css");
+
+const css = fs.readFileSync("./src/sse-test/styles.css", 'utf8');
+const { code } = transform({
+  filename: 'style.css',
+  code: Buffer.from(css),
+  minify: true,
+});
+
+new IndexBuilder()
+  .readHTML("./src/sse-test/index.html")
+  .embedCSS(code.toString())
+  .embedJsFromFile("./lib-dist/embed.js")
+  .writeToFile("./dist/sse-test/index.html");
+

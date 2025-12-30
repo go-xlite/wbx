@@ -11,10 +11,12 @@ import (
 	server_data "github.com/go-xlite/wbx/debug/api/server_data"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
 	client "github.com/go-xlite/wbx/demo/client"
+	clientroot "github.com/go-xlite/wbx/demo/client-root"
 	handlermedia "github.com/go-xlite/wbx/handler_media"
 	handlerproxy "github.com/go-xlite/wbx/handler_proxy"
 	handlersse "github.com/go-xlite/wbx/handler_sse"
 	handlerws "github.com/go-xlite/wbx/handler_ws"
+	webapp "github.com/go-xlite/wbx/root/webapp"
 	"github.com/go-xlite/wbx/server/webcast"
 	"github.com/go-xlite/wbx/server/webproxy"
 	"github.com/go-xlite/wbx/server/websock"
@@ -100,23 +102,6 @@ func main() {
 	}
 	wsHandler.Run()
 
-	// == XApp Handler Setup ===
-	sway := websway.NewWebSway()
-	xappHandler := wbx.NewXAppHandler(sway)
-
-	embedAdapter := embedfs.NewEmbedFS(&clientInstance.Content)
-	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
-	sway.FsProvider = embedAdapter
-	sway.SecurityHeaders = true
-	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
-
-	// Create XApp handler for serving HTML applications
-
-	xappHandler.SetPathPrefix("xt23")
-	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
-
-	xappHandler.Run()
-
 	// Initialize server data provider
 	serversData := server_data.NewServersDataGen()
 	serversData.Initialize(80)
@@ -131,7 +116,30 @@ func main() {
 	apiHandler.SetPathPrefix("/xt23/trail")
 	apiHandler.Run()
 
-	server.GetRoutes().HandlePathPrefixFn("/", sway.OnRequest)
+	// == XApp Handler Setup ===
+	sway := websway.NewWebSway()
+	xappHandler := wbx.NewXAppHandler(sway)
+
+	embedAdapter := embedfs.NewEmbedFS(&clientInstance.Content)
+	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
+	sway.FsProvider = embedAdapter
+	sway.SecurityHeaders = true
+	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
+
+	// Create XApp handler for serving HTML applications
+
+	xappHandler.SetPathPrefix("xt23")
+	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
+	xappHandler.Run(server)
+
+	clr := clientroot.NewClientRoot()
+	app := webapp.NewWebApp()
+	rootfs := embedfs.NewEmbedFS(&clr.Content)
+	rootfs.SetBasePath("dist")
+	app.Fs = rootfs
+	app.DefaultHome = "/xt23/home"
+	server.GetRoutes().HandlePathPrefixFn("/", app.HandleRequest)
+
 	// Start the server
 	log.Println("Server starting on http://localhost:8080")
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-xlite/wbx/comm"
+	hl1 "github.com/go-xlite/wbx/helpers"
 )
 
 // WebSway represents a backend server component that handles requests
@@ -205,11 +206,13 @@ func (wt *WebSway) ApplyCacheHeaders(w http.ResponseWriter, requestPath string) 
 // ServeFile serves a single file from the filesystem with proper headers and MIME type
 func (wt *WebSway) ServeFile(w http.ResponseWriter, r *http.Request) {
 	// Read file from filesystem provider
+
 	storagePath, err := wt.ExtractStoragePath(r.URL.Path, "/", wt.PathBase)
 	if err != nil {
 		wt.NotFound(w, r)
 		return
 	}
+
 	data, err := wt.FsProvider.ReadFile(storagePath)
 	if err != nil {
 		wt.NotFound(w, r)
@@ -229,8 +232,40 @@ func (wt *WebSway) ServeFile(w http.ResponseWriter, r *http.Request) {
 		mimeType = "application/octet-stream"
 	}
 	w.Header().Set("Content-Type", mimeType)
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+func (wt *WebSway) ServeWebManifest(storagePath, prefix string, w http.ResponseWriter, r *http.Request) {
+	data, err := wt.FsProvider.ReadFile(storagePath)
+	if err != nil {
+		wt.NotFound(w, r)
+		return
+	}
+	// execute textTemplate and replace {{ .Prefix }} with actual prefix
+	dataStr := string(data)
+	dataStr = strings.ReplaceAll(dataStr, "{{.Prefix}}", prefix)
+	data = []byte(dataStr)
+	hl1.Helpers.WriteWebManifestBytes(w, data)
+}
+func (wt *WebSway) ServeServiceWorker(path, scope string, w http.ResponseWriter, r *http.Request) bool {
+	data, err := wt.FsProvider.ReadFile(path)
+	if err != nil {
+		wt.NotFound(w, r)
+		return false
+	}
+
+	// Apply security headers
+	wt.ApplySecurityHeaders(w)
+	// Service Workers must have specific headers
+	w.Header().Set("Content-Type", "application/javascript")
+	w.Header().Set("Service-Worker-Allowed", scope)
+
+	// Apply caching
+	wt.ApplyCacheHeaders(w, path)
 
 	// Write response
 	w.WriteHeader(http.StatusOK)
 	w.Write(data)
+	return true
 }

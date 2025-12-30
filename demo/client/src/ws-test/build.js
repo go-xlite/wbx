@@ -1,5 +1,6 @@
 import fs from "fs";
 import { transform } from 'lightningcss';
+import { IndexBuilder } from "../../lib/builder.js";
 
 
 await Bun.build({
@@ -24,5 +25,8 @@ const { code } = transform({
   minify: true,
 });
 
-fs.writeFileSync("./dist/ws-test/styles.css", code);
-fs.copyFileSync("./src/ws-test/index.html", "./dist/ws-test/index.html");
+new IndexBuilder()
+  .readHTML("./src/ws-test/index.html")
+  .embedCSS(code.toString())
+  .embedJsFromFile("./lib-dist/embed.js")
+  .writeToFile("./dist/ws-test/index.html");

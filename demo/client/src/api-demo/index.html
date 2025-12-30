@@ -5,20 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Instances - Cloud Console</title>
     <embedded-css></embedded-css>
-    <script>
-        (function () {
-            const segments = window.location.pathname.split('/').filter(s => s);
-            window.PATH_PREFIX = segments.length > 0 ? '/' + segments[0] : '';
-        })();
-        
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('a[href*="__PREFIX__"]').forEach(el => {
-                const rawHref = el.getAttribute('href');
-                const newHref = rawHref.replace(/__PREFIX__/g, window.PATH_PREFIX);
-                el.setAttribute('href', newHref);
-            });
-        }, { once: true });
-    </script>
+    <embedded-js></embedded-js>
 </head>
 <body>
     <div class="top-bar">

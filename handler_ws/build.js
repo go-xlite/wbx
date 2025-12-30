@@ -25,6 +25,7 @@ await Bun.build({
     properties: true,
     keepNames: false
   },
+  drop: ["console"],
   sourcemap: "none",
   target: "browser",
   splitting: false

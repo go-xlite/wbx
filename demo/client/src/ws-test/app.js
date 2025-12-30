@@ -96,13 +96,13 @@ function disconnect() {
         return;
     }
 
-    if (window.wsManager.connectionState !== WS_STATE.CONNECTED) {
+    if (wsManager.connectionState !== WS_STATE.CONNECTED) {
         addMessage('Not connected', 'error');
         return;
     }
 
     addMessage('Disconnecting...', 'info');
-    window.wsManager.disconnect();
+    wsManager.disconnect();
 }
 
 function sendMessage() {
@@ -429,36 +429,33 @@ async function initApp() {
             addMessage('Received: ' + data, 'received');
         });
 
-        // Handle connection close - only disconnect UI if truly disconnected
+        // Handle connection close
         wsManager.on(WS_EVENT.CLOSE, function() {
             // Don't update UI if we're switching modes
             if (switchingMode) {
                 return;
             }
             
-            // Only show disconnected if we're not using SharedWorker coordination
-            // or if the SharedWorker itself is disconnected
-            if (!wsManager.isCoordinationEnabled() || wsManager.connectionMode === WS_MODE.DIRECT) {
-                updateStatus(WS_STATE.DISCONNECTED);
-                addMessage('Connection closed', 'error');
-                connectTime = null;
-                if (uptimeInterval) {
-                    clearInterval(uptimeInterval);
-                    uptimeInterval = null;
-                }
-                updateUptime();
-                document.getElementById('connectBtn').disabled = false;
-                document.getElementById('disconnectBtn').disabled = true;
-                document.getElementById('sendBtn').disabled = true;
-                document.getElementById('pingBtn').disabled = true;
-                document.getElementById('burstBtn').disabled = true;
+            // Update UI when connection is actually closed
+            updateStatus(WS_STATE.DISCONNECTED);
+            addMessage('Connection closed', 'error');
+            connectTime = null;
+            if (uptimeInterval) {
+                clearInterval(uptimeInterval);
+                uptimeInterval = null;
             }
+            updateUptime();
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('sendBtn').disabled = true;
+            document.getElementById('pingBtn').disabled = true;
+            document.getElementById('burstBtn').disabled = true;
         });
 
         // Handle errors
         wsManager.on(WS_EVENT.ERROR, function(error) {
             addMessage('WebSocket error occurred', 'error');
-            console.error('WebSocket error:', error);
+           // console.error('WebSocket error:', error);
         });
 
         // Handle coordination events (when using SharedWorker)
@@ -503,7 +500,7 @@ async function initApp() {
 
             wsManager.onCoordinationEvent(WS_COORD_EVENT.TABS_UPDATED, function(tabs) {
                 // Tab list updated
-                console.log('Known tabs:', tabs);
+                // console.log('Known tabs:', tabs);
                 updateSessionInfo();
             });
 

@@ -1,5 +1,6 @@
 import fs from "fs";
 import { transform } from 'lightningcss';
+import { IndexBuilder } from "../../lib/builder.js";
 
 
 await Bun.build({
@@ -17,7 +18,7 @@ await Bun.build({
   splitting: false
 });
 
-// Read and minify CSS
+
 const css = fs.readFileSync("./src/api-demo/styles.css", 'utf8');
 const { code } = transform({
   filename: 'style.css',
@@ -25,11 +26,8 @@ const { code } = transform({
   minify: true,
 });
 
-// Read HTML and embed CSS
-const html = fs.readFileSync("./src/api-demo/index.html", 'utf8');
-const htmlWithEmbeddedCSS = html.replace(
-  '<embedded-css></embedded-css>',
-  `<style>${code.toString()}</style>`
-);
-
-fs.writeFileSync("./dist/api-demo/index.html", htmlWithEmbeddedCSS);
+new IndexBuilder()
+  .readHTML("./src/api-demo/index.html")
+  .embedCSS(code.toString())
+  .embedJsFromFile("./lib-dist/embed.js")
+  .writeToFile("./dist/api-demo/index.html");

@@ -1,5 +1,6 @@
-console.log('Home app.js loaded successfully!');
-console.log('Served via virtual directory pattern: /home/p/app.js -> dist/home/app.js');
+import { loadServiceWorker } from '../../lib/site_core.js';
+
+// loadServiceWorker();
 
 document.addEventListener('DOMContentLoaded', function() {
     const h1 = document.querySelector('h1');

@@ -53,6 +53,7 @@ class SSEManager {
     #callbacks_primary;
     #callbacks_secondary;
     #instanceId;
+    #boundCleanup;
     
     constructor(url, options = {}) {
         this.#url = url;
@@ -74,6 +75,11 @@ class SSEManager {
         this.#callbacks_close = [];
         this.#callbacks_primary = [];
         this.#callbacks_secondary = [];
+        
+        // Auto-cleanup on page unload
+        this.#boundCleanup = () => this.disconnect();
+        window.addEventListener('beforeunload', this.#boundCleanup);
+        window.addEventListener('pagehide', this.#boundCleanup);
     }
     
     /**
@@ -106,20 +112,32 @@ class SSEManager {
      * Disconnect from SSE
      */
     disconnect() {
-        this.ops.reconnect = false;
-        this.#connectionState = STATE_DISCONNECTED;
+        console.log('[SSEManager] Disconnect called, closing connection');
         
-        // Clear all timers
+        // Immediately disable reconnect
+        this.ops.reconnect = false;
+        
+        // Clear all timers FIRST to prevent any reconnection attempts
         this.#clearTimers();
         
-        // Close SSE connection properly
+        // Force close SSE connection
         if (this.#eventSource) {
+            console.log('[SSEManager] Closing EventSource, readyState:', this.#eventSource.readyState);
+            
+            // Remove all event handlers BEFORE closing to prevent error/close events from firing
             this.#eventSource.onopen = null;
             this.#eventSource.onmessage = null;
             this.#eventSource.onerror = null;
+            
+            // Close the connection
             this.#eventSource.close();
+            console.log('[SSEManager] EventSource closed, new readyState:', this.#eventSource.readyState);
             this.#eventSource = null;
         }
+        
+        // Update state AFTER closing connection
+        this.#connectionState = STATE_DISCONNECTED;
+        this.#isPrimary = false;
         
         // Notify other tabs before closing channel
         if (this.#broadcastChannel) {
@@ -131,8 +149,14 @@ class SSEManager {
             this.#broadcastChannel = null;
         }
         
-        this.#isPrimary = false;
+        // Remove page unload listeners
+        if (this.#boundCleanup) {
+            window.removeEventListener('beforeunload', this.#boundCleanup);
+            window.removeEventListener('pagehide', this.#boundCleanup);
+        }
+        
         this.#triggerCallback(EVENT_CLOSE);
+        console.log('[SSEManager] Disconnect complete');
     }
     
     /**

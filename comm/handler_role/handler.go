@@ -37,6 +37,9 @@ func (pp *PathPrefix) Set(prefix string) {
 func (pp *PathPrefix) Get() string {
 	return pp.Prefix
 }
+func (pp *PathPrefix) GetNoTrailingSlash() string {
+	return strings.TrimSuffix(pp.Prefix, "/")
+}
 
 func ensureEndsWithSlash(s string) string {
 	if strings.HasSuffix(s, "/") {

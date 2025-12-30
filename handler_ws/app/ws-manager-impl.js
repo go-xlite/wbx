@@ -993,12 +993,14 @@ class WebSocketManager {
      * Disconnect WebSocket
      */
     disconnect(suppressEvents = false) {
+        console.log('[WS] Disconnect called, mode:', this.connectionMode);
         this.connectionState = STATE_DISCONNECTED;
         
         switch (this.connectionMode) {
             case MODE_WORKER:
                 if (this.#worker) {
                     try {
+                        console.log('[WS] Closing SharedWorker connection');
                         this.#worker.port.postMessage({ type: WORKER_DISCONNECT });
                         this.#worker.port.close();
                     } catch (e) {
@@ -1011,7 +1013,14 @@ class WebSocketManager {
             case MODE_DIRECT:
                 if (this.#socket) {
                     try {
+                        console.log('[WS] Closing direct WebSocket connection, readyState:', this.#socket.readyState);
+                        // Remove event handlers before closing to prevent reconnection attempts
+                        this.#socket.onopen = null;
+                        this.#socket.onmessage = null;
+                        this.#socket.onerror = null;
+                        this.#socket.onclose = null;
                         this.#socket.close();
+                        console.log('[WS] WebSocket closed, new readyState:', this.#socket.readyState);
                     } catch (e) {
                         console.log('[WS] Error closing socket', e);
                     }
@@ -1031,6 +1040,7 @@ class WebSocketManager {
         }
         
         this.#triggerCallback(EVENT_CLOSE);
+        console.log('[WS] Disconnect complete');
     }
 
     /**

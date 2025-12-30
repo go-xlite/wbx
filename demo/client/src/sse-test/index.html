@@ -4,23 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SSE Test - WBX Demo</title>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Use getAttribute to get raw href value before browser resolves it
-            document.querySelectorAll('a[href*="__PREFIX__"]').forEach(el => {
-                const rawHref = el.getAttribute('href');
-                const newHref = rawHref.replace(/__PREFIX__/g, window.PATH_PREFIX);
-                el.setAttribute('href', newHref);
-            });
-        }, { once: true });
-        (function () {
-            const segments = window.location.pathname.split('/').filter(s => s);
-            window.PATH_PREFIX = segments.length > 0 ? '/' + segments[0] : '';
-            
-            // Immediately write CSS link with correct prefix to avoid FOUC
-            document.write('<link rel="stylesheet" href="' + window.PATH_PREFIX + '/sse-test/p/styles.css">');
-        })();
-    </script>
+    <embedded-js></embedded-js>
+    <embedded-css></embedded-css>
 </head>
 <body>
     <nav>

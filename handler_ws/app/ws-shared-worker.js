@@ -4,6 +4,12 @@
  * This worker maintains a persistent WebSocket connection shared across tabs/windows
  */
 
+// Helper function for consistent timestamp logging
+function timestamp() {
+    const now = new Date();
+    return `[${now.toISOString().substr(11, 12)}]`;
+}
+
 // Worker message types (must match browser-ws-manager.js)
 const WORKER_CONNECT = 1;
 const WORKER_DISCONNECT = 2;
@@ -23,6 +29,8 @@ let socket = null;
 let connectionId = null;
 let reconnectAttempts = 0;
 let reconnectTimeout = null;
+let givenUp = false;
+let isReconnecting = false;
 const maxReconnectAttempts = 10;
 
 // Handle messages from connected clients
@@ -60,14 +68,22 @@ self.onconnect = function(e) {
 
 // Handle messages from clients
 function handleClientMessage(message, sourcePort) {
+    console.log(`${timestamp()} [SharedWorker] Received message type ${message.type}`);
     switch (message.type) {
         case WORKER_CONNECT:
+            console.log(`${timestamp()} [SharedWorker] WORKER_CONNECT - socket state: ${socket ? socket.readyState : 'null'}`);
             if (!socket || socket.readyState !== WebSocket.OPEN) {
+                console.log(`${timestamp()} [SharedWorker] Resetting state for explicit connect`);
+                givenUp = false; // Reset on explicit connect request
+                reconnectAttempts = 0;
+                clearTimeout(reconnectTimeout);
+                isReconnecting = false;
                 connectWebSocket(message.connectionId);
             }
             break;
             
         case WORKER_DISCONNECT:
+            console.log(`${timestamp()} [SharedWorker] WORKER_DISCONNECT requested`);
             if (socket) {
                 socket.close();
                 socket = null;
@@ -76,8 +92,10 @@ function handleClientMessage(message, sourcePort) {
             
         case WORKER_SEND:
             if (socket && socket.readyState === WebSocket.OPEN) {
+                console.log(`${timestamp()} [SharedWorker] Sending data`);
                 socket.send(message.data);
             } else {
+                console.log(`${timestamp()} [SharedWorker] Cannot send - socket not connected`);
                 sourcePort.postMessage({
                     type: WORKER_ERROR,
                     error: 'Socket not connected'
@@ -86,9 +104,9 @@ function handleClientMessage(message, sourcePort) {
             break;
             
         case WORKER_RECONNECT:
-            if (!socket || socket.readyState !== WebSocket.OPEN) {
-                connectWebSocket(message.connectionId);
-            }
+            // This message type is only for broadcasting TO clients, not receiving FROM them
+            // Clients should not send this - it's a status notification only
+            console.log(`${timestamp()} [SharedWorker] ⚠ WARNING: Received WORKER_RECONNECT from client (invalid - this is a status message only)`)
             break;
             
         case WORKER_GLOBAL_SHUTDOWN:
@@ -129,7 +147,10 @@ function handleClientMessage(message, sourcePort) {
 
 // Connect to the WebSocket server
 function connectWebSocket(connId) {
+    console.log(`${timestamp()} [SharedWorker] connectWebSocket called - isReconnecting: ${isReconnecting}, attempts: ${reconnectAttempts}`);
+    
     if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) {
+        console.log(`${timestamp()} [SharedWorker] Socket already connecting/connected, aborting`);
         return;
     }
     
@@ -141,13 +162,18 @@ function connectWebSocket(connId) {
     
 
     const url = `${protocol}//${host}${endpoint}?connid=${connectionId}`;
+    console.log(`${timestamp()} [SharedWorker] Creating WebSocket to ${url}`);
     
     try {
         socket = new WebSocket(url);
         
         socket.onopen = function() {
-            console.log('[SharedWorker] WebSocket connected');
+            console.log(`${timestamp()} [SharedWorker] ✓ WebSocket CONNECTED`);
+            console.log(`${timestamp()} [SharedWorker] Resetting reconnectAttempts: ${reconnectAttempts} -> 0, isReconnecting: ${isReconnecting} -> false`);
             reconnectAttempts = 0;
+            givenUp = false;
+            isReconnecting = false;
+            clearTimeout(reconnectTimeout);
             
             // Notify all clients that the connection is established
             broadcastToClients({
@@ -157,26 +183,39 @@ function connectWebSocket(connId) {
         };
         
         socket.onclose = function() {
-            console.log('[SharedWorker] WebSocket closed');
+            console.log(`${timestamp()} [SharedWorker] ✗ WebSocket CLOSED - isReconnecting was: ${isReconnecting}, attempts: ${reconnectAttempts}`);
+            socket = null;
             
             // Notify all clients
             broadcastToClients({
                 type: WORKER_DISCONNECTED
             });
             
-            // Attempt to reconnect if there are clients
-            if (clients.size > 0) {
+            // Reset the reconnecting flag - this connection attempt is complete
+            console.log(`${timestamp()} [SharedWorker] Setting isReconnecting: ${isReconnecting} -> false`);
+            isReconnecting = false;
+            
+            // Schedule the next reconnection attempt
+            console.log(`${timestamp()} [SharedWorker] Checking reconnect conditions - clients: ${clients.size}, givenUp: ${givenUp}`);
+            if (clients.size > 0 && !givenUp) {
                 reconnectWithBackoff();
+            } else {
+                console.log(`${timestamp()} [SharedWorker] Skipping reconnect`);
             }
         };
         
         socket.onerror = function(error) {
-            console.error('[SharedWorker] WebSocket error:', error);
+            console.error(`${timestamp()} [SharedWorker] ⚠ WebSocket ERROR:`, error);
             
-            broadcastToClients({
-                type: WORKER_ERROR,
-                error: 'WebSocket error'
-            });
+            // Only broadcast errors if we haven't given up
+            if (!givenUp) {
+                broadcastToClients({
+                    type: WORKER_ERROR,
+                    error: 'WebSocket error'
+                });
+            }
+            
+            // Don't handle reconnection here - onclose will handle it
         };
         
         socket.onmessage = function(event) {
@@ -191,14 +230,22 @@ function connectWebSocket(connId) {
             });
         };
     } catch (error) {
-        console.error('[SharedWorker] Error creating WebSocket:', error);
+        console.error(`${timestamp()} [SharedWorker] ⚠ EXCEPTION creating WebSocket:`, error);
+        socket = null;
         
-        broadcastToClients({
-            type: WORKER_ERROR,
-            error: 'Failed to create WebSocket connection'
-        });
+        if (!givenUp) {
+            broadcastToClients({
+                type: WORKER_ERROR,
+                error: 'Failed to create WebSocket connection'
+            });
+        }
         
-        if (clients.size > 0) {
+        // Reset reconnecting flag since this connection attempt failed immediately
+        console.log(`${timestamp()} [SharedWorker] Setting isReconnecting: ${isReconnecting} -> false (catch)`);
+        isReconnecting = false;
+        
+        console.log(`${timestamp()} [SharedWorker] Checking reconnect after catch - clients: ${clients.size}, givenUp: ${givenUp}`);
+        if (clients.size > 0 && !givenUp) {
             reconnectWithBackoff();
         }
     }
@@ -217,8 +264,18 @@ function broadcastToClients(message) {
 
 // Reconnect with exponential backoff
 function reconnectWithBackoff() {
+    console.log(`${timestamp()} [SharedWorker] ══════ reconnectWithBackoff CALLED ══════`);
+    console.log(`${timestamp()} [SharedWorker] State: isReconnecting=${isReconnecting}, attempts=${reconnectAttempts}, givenUp=${givenUp}`);
+    
+    // Prevent multiple simultaneous reconnection scheduling
+    if (isReconnecting) {
+        console.log(`${timestamp()} [SharedWorker] ⊘ BLOCKED: Reconnection already scheduled, skipping`);
+        return;
+    }
+    
     if (reconnectAttempts >= maxReconnectAttempts) {
-        console.log('[SharedWorker] Maximum reconnection attempts reached');
+        console.log(`${timestamp()} [SharedWorker] ⊗ GIVING UP: Maximum reconnection attempts reached`);
+        givenUp = true;
         broadcastToClients({
             type: WORKER_ERROR,
             error: 'Maximum reconnection attempts reached'
@@ -226,10 +283,21 @@ function reconnectWithBackoff() {
         return;
     }
     
-    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+    // Mark that we're scheduling a reconnection
+    console.log(`${timestamp()} [SharedWorker] Setting isReconnecting: false -> true`);
+    isReconnecting = true;
+    
+    // Base delay of 2 seconds, exponential backoff with max of 60 seconds
+    const baseDelay = 2000 * Math.pow(2, reconnectAttempts);
+    const maxDelay = 60000;
+    
+    // Add jitter of ±20% to prevent thundering herd problem
+    const jitter = 0.8 + (Math.random() * 0.4); // Random value between 0.8 and 1.2
+    const delay = Math.min(Math.floor(baseDelay * jitter), maxDelay);
+    
     reconnectAttempts++;
     
-    console.log(`[SharedWorker] Attempting to reconnect in ${delay}ms (attempt ${reconnectAttempts})`);
+    console.log(`${timestamp()} [SharedWorker] ⏲ SCHEDULING reconnect: attempt ${reconnectAttempts} in ${delay}ms (base: ${baseDelay}ms, jitter: ${jitter.toFixed(2)})`);
     
     // No RECONNECTING constant defined, using WORKER_ERROR with reconnecting info
     broadcastToClients({
@@ -240,6 +308,8 @@ function reconnectWithBackoff() {
     
     clearTimeout(reconnectTimeout);
     reconnectTimeout = setTimeout(() => {
+        // Still keep flag true during connection attempt
+        console.log(`${timestamp()} [SharedWorker] ▶ TIMEOUT FIRED: Executing reconnect attempt ${reconnectAttempts}`);
         connectWebSocket(connectionId);
     }, delay);
 }

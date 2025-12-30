@@ -1,0 +1,1 @@
+(()=>{document.addEventListener("DOMContentLoaded",function(){document.querySelectorAll('a[href*="__PREFIX__"]').forEach((c)=>{let j=c.getAttribute("href").replace(/__PREFIX__/g,window.PATH_PREFIX);c.setAttribute("href",j)})},{once:!0});let d=window.location.pathname.split("/").filter((c)=>c);window.PATH_PREFIX=d.length>0?"/"+d[0]:""})();
