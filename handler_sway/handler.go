@@ -1,4 +1,4 @@
-package weblite
+package swayhandler
 
 import (
 	"embed"
@@ -15,9 +15,9 @@ import (
 //go:embed app-dist/*
 var content embed.FS
 
-// XAppHandler is optimized for serving HTML applications with linked assets
+// SwayHandler is optimized for serving HTML applications with linked assets
 // Features: Template rendering, asset serving, security headers
-type XAppHandler struct {
+type SwayHandler struct {
 	*handler_role.HandlerRole
 	SessionResolver  comm.SessionResolver
 	LoginPage        string
@@ -25,11 +25,11 @@ type XAppHandler struct {
 	sway             *websway.WebSway
 }
 
-// NewXAppHandler creates a XAppHandler wrapper around an existing handler instance
-func NewXAppHandler(sway *websway.WebSway) *XAppHandler {
+// NewSwayHandler creates a SwayHandler wrapper around an existing handler instance
+func NewSwayHandler(sway *websway.WebSway) *SwayHandler {
 	handlerRole := handler_role.NewHandler()
 
-	return &XAppHandler{
+	return &SwayHandler{
 		sway:             sway,
 		HandlerRole:      handlerRole,
 		LoginPage:        "/login",
@@ -37,7 +37,7 @@ func NewXAppHandler(sway *websway.WebSway) *XAppHandler {
 	}
 }
 
-func (ws *XAppHandler) Run(wbl *weblite.WebLite) {
+func (ws *SwayHandler) Run(wbl *weblite.WebLite) {
 
 	wbl.GetRoutes().ForwardPathPrefixFn(ws.PathPrefix.Suffix("/sway/p"), func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {

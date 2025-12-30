@@ -116,9 +116,9 @@ func main() {
 	apiHandler.SetPathPrefix("/xt23/trail")
 	apiHandler.Run()
 
-	// == XApp Handler Setup ===
+	// == Sway Handler Setup ===
 	sway := websway.NewWebSway()
-	xappHandler := wbx.NewXAppHandler(sway)
+	swayHandler := wbx.NewSwayHandler(sway)
 
 	embedAdapter := embedfs.NewEmbedFS(&clientInstance.Content)
 	embedAdapter.SetBasePath("dist") // Set base path inside the embedded FS
@@ -126,11 +126,11 @@ func main() {
 	sway.SecurityHeaders = true
 	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
 
-	// Create XApp handler for serving HTML applications
+	// Create Sway handler for serving HTML applications
 
-	xappHandler.SetPathPrefix("xt23")
-	xappHandler.AuthSkippedPaths = []string{} // No auth for demo
-	xappHandler.Run(server)
+	swayHandler.SetPathPrefix("xt23")
+	swayHandler.AuthSkippedPaths = []string{} // No auth for demo
+	swayHandler.Run(server)
 
 	clr := clientroot.NewClientRoot()
 	app := webapp.NewWebApp()

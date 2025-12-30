@@ -7,8 +7,8 @@ import (
 	pxy "github.com/go-xlite/wbx/handler_proxy"
 	rth "github.com/go-xlite/wbx/handler_root"
 	sse "github.com/go-xlite/wbx/handler_sse"
+	sway "github.com/go-xlite/wbx/handler_sway"
 	ws "github.com/go-xlite/wbx/handler_ws"
-	xapp "github.com/go-xlite/wbx/handler_xapp"
 	hl1 "github.com/go-xlite/wbx/helpers"
 	wc "github.com/go-xlite/wbx/server/webcast"
 	"github.com/go-xlite/wbx/server/webproxy"
@@ -37,7 +37,7 @@ var NewWebProxy = webproxy.NewWebproxy
 // Type aliases for easy access
 type ApiHandler = sa.ApiHandler
 type CdnHandler = sc.CdnHandler
-type XAppHandler = xapp.XAppHandler
+type SwayHandler = sway.SwayHandler
 type RootHandler = rth.RootHandler
 type SSEHandler = sse.SSEHandler
 type WsHandler = ws.WsHandler
@@ -47,7 +47,7 @@ type MediaHandler = media.MediaHandler
 // Constructor functions
 var NewApiHandler = sa.NewApiHandler
 var NewCdnHandler = sc.NewCdnHandler
-var NewXAppHandler = xapp.NewXAppHandler
+var NewSwayHandler = sway.NewSwayHandler
 var NewRootHandler = rth.NewRootHandler
 var NewSSEHandler = sse.NewSSEHandler
 var NewWsHandler = ws.NewWsHandler
