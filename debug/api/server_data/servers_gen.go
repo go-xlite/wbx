@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	datagen "github.com/go-xlite/wbx/debug/api/datagen"
-	hl1 "github.com/go-xlite/wbx/helpers"
+	hl1 "github.com/go-xlite/wbx/utils"
 	"github.com/gorilla/mux"
 )
 
@@ -117,8 +117,8 @@ type ServersDataGen struct {
 
 // ListResponse contains column mapping and positional data
 type ListResponse struct {
-	Columns []string        `json:"columns"`
-	Data    [][]interface{} `json:"data"`
+	Columns []string `json:"columns"`
+	Data    [][]any  `json:"data"`
 }
 
 func NewServersDataGen() *ServersDataGen {
@@ -179,9 +179,9 @@ func (sdg *ServersDataGen) transformToPositionalData(list []*InstanceListItem) *
 		"PublicIPv4", "PrivateIPv4",
 	}
 
-	data := make([][]interface{}, 0, len(list))
+	data := make([][]any, 0, len(list))
 	for _, item := range list {
-		row := []interface{}{
+		row := []any{
 			item.ID,
 			item.Hostname,
 			item.State,

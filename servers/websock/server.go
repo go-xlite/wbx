@@ -24,7 +24,7 @@ type WsSession struct {
 	ID        string
 	UserID    int64
 	Username  string
-	Data      map[string]interface{}
+	Data      map[string]any
 	CreatedAt time.Time
 	LastSeen  time.Time
 	mu        sync.RWMutex
@@ -308,7 +308,7 @@ func (ws *WebSock) GetOrCreateSession(sessionID string, userID int64, username s
 			ID:        sessionID,
 			UserID:    userID,
 			Username:  username,
-			Data:      make(map[string]interface{}),
+			Data:      make(map[string]any),
 			CreatedAt: time.Now(),
 			LastSeen:  time.Now(),
 		}
@@ -336,14 +336,14 @@ func (ws *WebSock) DeleteSession(sessionID string) {
 }
 
 // SetSessionData sets a value in the session data
-func (session *WsSession) Set(key string, value interface{}) {
+func (session *WsSession) Set(key string, value any) {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	session.Data[key] = value
 }
 
 // GetSessionData gets a value from the session data
-func (session *WsSession) Get(key string) (interface{}, bool) {
+func (session *WsSession) Get(key string) (any, bool) {
 	session.mu.RLock()
 	defer session.mu.RUnlock()
 	value, exists := session.Data[key]

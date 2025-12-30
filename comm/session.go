@@ -40,7 +40,7 @@ func GetAccountID(r *http.Request) (int64, bool) {
 	return val, ok
 }
 
-func GetUserData(r *http.Request) (interface{}, bool) {
+func GetUserData(r *http.Request) (any, bool) {
 	val := r.Context().Value(UserDataKey)
 	return val, val != nil
 }
@@ -58,6 +58,6 @@ func WithAccountID(r *http.Request, accountID int64) context.Context {
 	return context.WithValue(r.Context(), AccountIDKey, accountID)
 }
 
-func WithUserData(r *http.Request, data interface{}) context.Context {
+func WithUserData(r *http.Request, data any) context.Context {
 	return context.WithValue(r.Context(), UserDataKey, data)
 }

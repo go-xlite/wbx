@@ -9,12 +9,12 @@ import (
 	sse "github.com/go-xlite/wbx/handlers/handler_sse"
 	sway "github.com/go-xlite/wbx/handlers/handler_sway"
 	ws "github.com/go-xlite/wbx/handlers/handler_ws"
-	hl1 "github.com/go-xlite/wbx/helpers"
 	wc "github.com/go-xlite/wbx/servers/webcast"
 	"github.com/go-xlite/wbx/servers/webproxy"
 	wss "github.com/go-xlite/wbx/servers/websock"
 	"github.com/go-xlite/wbx/servers/webstream"
 	wt "github.com/go-xlite/wbx/servers/webtrail"
+	hl1 "github.com/go-xlite/wbx/utils"
 	wl "github.com/go-xlite/wbx/weblite"
 )
 
@@ -25,14 +25,14 @@ type WebLite = wl.WebLite
 type WebCast = wc.WebCast
 type WebSock = wss.WebSock
 type WebStream = webstream.WebStream
-type WebProxy = webproxy.Webproxy
+type WebProxy = webproxy.WebProxy
 
 var NewWebLite = wl.NewWebLite
-var NewWebTrail = wt.NewWebtrail
+var NewWebTrail = wt.NewWebTrail
 var NewWebCast = wc.NewWebCast
 var NewWebSock = wss.NewWebSock
 var NewWebStream = webstream.NewWebStream
-var NewWebProxy = webproxy.NewWebproxy
+var NewWebProxy = webproxy.NewWebProxy
 
 // Type aliases for easy access
 type ApiHandler = sa.ApiHandler

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	hl1 "github.com/go-xlite/wbx/helpers"
 	"github.com/go-xlite/wbx/servers/webcast"
+	hl1 "github.com/go-xlite/wbx/utils"
 )
 
 //go:embed app-dist/*
@@ -82,7 +82,7 @@ func (sh *SSEHandler) Broadcast(message string) int {
 }
 
 // BroadcastJSON sends a JSON message to all connected clients
-func (sh *SSEHandler) BroadcastJSON(data interface{}) (int, error) {
+func (sh *SSEHandler) BroadcastJSON(data any) (int, error) {
 	return sh.webcast.BroadcastJSON(data)
 }
 
@@ -92,7 +92,7 @@ func (sh *SSEHandler) SendToClient(clientID string, message string) bool {
 }
 
 // SendJSONToClient sends a JSON message to a specific client
-func (sh *SSEHandler) SendJSONToClient(clientID string, data interface{}) (bool, error) {
+func (sh *SSEHandler) SendJSONToClient(clientID string, data any) (bool, error) {
 	return sh.webcast.SendJSONToClient(clientID, data)
 }
 

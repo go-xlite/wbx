@@ -13,8 +13,8 @@ type WebTrail struct {
 	NotFound http.HandlerFunc
 }
 
-// NewWebtrail creates a new WebTrail instance with proper routing capabilities
-func NewWebtrail() *WebTrail {
+// NewWebTrail creates a new WebTrail instance with proper routing capabilities
+func NewWebTrail() *WebTrail {
 	wt := &WebTrail{
 		ServerCore: comm.NewServerCore(),
 		PathBase:   "",

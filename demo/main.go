@@ -5,24 +5,18 @@ import (
 	"log"
 	"time"
 
-	wbx "github.com/go-xlite/wbx" // Import to include XAppHandler
-	embedfs "github.com/go-xlite/wbx/adapter_fs/embed_fs"
-	osfs "github.com/go-xlite/wbx/adapter_fs/os_fs"
+	wbx "github.com/go-xlite/wbx"
+	embedfs "github.com/go-xlite/wbx/comm/adapter_fs/embed_fs"
+	osfs "github.com/go-xlite/wbx/comm/adapter_fs/os_fs"
 	server_data "github.com/go-xlite/wbx/debug/api/server_data"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
 	client "github.com/go-xlite/wbx/demo/client"
 	clientroot "github.com/go-xlite/wbx/demo/client-root"
-	handlermedia "github.com/go-xlite/wbx/handlers/handler_media"
-	handlerproxy "github.com/go-xlite/wbx/handlers/handler_proxy"
-	handlersse "github.com/go-xlite/wbx/handlers/handler_sse"
-	handlerws "github.com/go-xlite/wbx/handlers/handler_ws"
-	webapp "github.com/go-xlite/wbx/root/webapp"
-	"github.com/go-xlite/wbx/servers/webcast"
-	"github.com/go-xlite/wbx/servers/webproxy"
+	handlers "github.com/go-xlite/wbx/handlers"
+	webapp "github.com/go-xlite/wbx/roots/webapp"
+	servers "github.com/go-xlite/wbx/servers"
 	"github.com/go-xlite/wbx/servers/websock"
-	"github.com/go-xlite/wbx/servers/webstream"
 	websway "github.com/go-xlite/wbx/servers/websway"
-	webtrail "github.com/go-xlite/wbx/servers/webtrail"
 	"github.com/go-xlite/wbx/weblite"
 )
 
@@ -47,9 +41,9 @@ func main() {
 	//debugfs.PrintEmbeddedFiles(clientInstance.Content, "[DEBUG] Embedded files:")
 
 	// Create webcast server for SSE connections
-	sseServer := webcast.NewWebCast()
+	sseServer := servers.NewWebCast()
 	// Create SSE handler
-	sseHandler := handlersse.NewSSEHandler(sseServer)
+	sseHandler := handlers.NewSSEHandler(sseServer)
 	sseHandler.SetPathPrefix("/xt23/sse")
 	server.GetRoutes().HandlePathPrefixFn(sseHandler.PathPrefix.Get(), sseServer.OnRequest)
 	sseHandler.Run()
@@ -63,21 +57,21 @@ func main() {
 	videoFsAdapter.SetBasePath("../../video_data")
 
 	// Create webstream server
-	streamServer := webstream.NewWebStream(videoFsAdapter)
-	mediaHandler := handlermedia.NewMediaHandler(streamServer)
+	streamServer := servers.NewWebStream(videoFsAdapter)
+	mediaHandler := handlers.NewMediaHandler(streamServer)
 	mediaHandler.SetPathPrefix("/xt23/stream")
 	server.GetRoutes().ForwardPathPrefixFn(mediaHandler.PathPrefix.Get(), mediaHandler.HandleMedia())
 
 	// === Webproxy (Reverse Proxy) ===
 	// Create webproxy server pointing to external service
-	proxyServer, _ := webproxy.NewWebproxy("https://file-drop.gtn.one:8080/xt21/")
-	proxyHandler := handlerproxy.NewProxyHandler(proxyServer)
+	proxyServer, _ := servers.NewWebProxy("https://file-drop.gtn.one:8080/xt21/")
+	proxyHandler := handlers.NewProxyHandler(proxyServer)
 	proxyHandler.SetPathPrefix("/xt23/proxy")
 	server.GetRoutes().HandlePathPrefixFn(proxyHandler.PathPrefix.Get(), proxyHandler.HandleProxy())
 
 	// === WebSocket Handler ===
-	wsServer := websock.NewWebSock()
-	wsHandler := handlerws.NewWsHandler(wsServer, "demo-ws")
+	wsServer := servers.NewWebSock()
+	wsHandler := handlers.NewWsHandler(wsServer, "demo-ws")
 	wsHandler.SetPathPrefix("/xt23/ws")
 
 	wsServer.OnMessage(func(msg *websock.WsMessage) {
@@ -107,7 +101,7 @@ func main() {
 	serversData.Initialize(80)
 
 	// Setup API routes
-	wbtServersApi := webtrail.NewWebtrail()
+	wbtServersApi := servers.NewWebTrail()
 	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/list", serversData.HandleListRequest)
 	wbtServersApi.GetRoutes().HandlePathFn("/servers/i/{id}/details", serversData.HandleDetailsRequest)
 	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/filters", serversData.HandleFiltersRequest)
@@ -128,7 +122,7 @@ func main() {
 
 	// Create Sway handler for serving HTML applications
 
-	swayHandler.SetPathPrefix("xt23")
+	swayHandler.SetPathPrefix("/xt23")
 	swayHandler.AuthSkippedPaths = []string{} // No auth for demo
 	swayHandler.Run(server)
 

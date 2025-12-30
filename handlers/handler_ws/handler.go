@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	wsh "github.com/go-xlite/wbx/handler/ws"
-	hl1 "github.com/go-xlite/wbx/helpers"
 	"github.com/go-xlite/wbx/servers/websock"
+	hl1 "github.com/go-xlite/wbx/utils"
 	"github.com/go-xlite/wbx/weblite"
 )
 

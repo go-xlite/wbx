@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/go-xlite/wbx/comm"
-	hl1 "github.com/go-xlite/wbx/helpers"
+	hl1 "github.com/go-xlite/wbx/utils"
 )
 
 // WebSway represents a backend server component that handles requests

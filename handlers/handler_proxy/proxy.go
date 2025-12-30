@@ -12,11 +12,11 @@ import (
 // This is a thin wrapper that delegates to the webproxy server
 type ProxyHandler struct {
 	*handler_role.HandlerRole
-	webproxy *webproxy.Webproxy
+	webproxy *webproxy.WebProxy
 }
 
 // NewProxyHandler creates a new proxy handler
-func NewProxyHandler(wp *webproxy.Webproxy) *ProxyHandler {
+func NewProxyHandler(wp *webproxy.WebProxy) *ProxyHandler {
 	handlerRole := handler_role.NewHandler()
 	handlerRole.Handler = wp
 

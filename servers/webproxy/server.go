@@ -21,8 +21,8 @@ type ProxyStats struct {
 	LastRequestTime    time.Time `json:"lastRequestTime"`
 }
 
-// Webproxy represents a reverse proxy server
-type Webproxy struct {
+// WebProxy represents a reverse proxy server
+type WebProxy struct {
 	*comm.ServerCore
 	PathBase string
 	NotFound http.HandlerFunc
@@ -48,14 +48,14 @@ type Webproxy struct {
 	LoadBalanceMode string // "round-robin", "random", "first"
 }
 
-// NewWebproxy creates a new Webproxy instance
-func NewWebproxy(targetURL string) (*Webproxy, error) {
+// NewWebProxy creates a new WebProxy instance
+func NewWebProxy(targetURL string) (*WebProxy, error) {
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		return nil, fmt.Errorf("invalid target URL: %w", err)
 	}
 
-	wp := &Webproxy{
+	wp := &WebProxy{
 		ServerCore:      comm.NewServerCore(),
 		PathBase:        "/",
 		targets:         []*url.URL{target},
@@ -75,12 +75,12 @@ func NewWebproxy(targetURL string) (*Webproxy, error) {
 }
 
 // OnRequest handles incoming HTTP requests
-func (wp *Webproxy) OnRequest(w http.ResponseWriter, r *http.Request) {
+func (wp *WebProxy) OnRequest(w http.ResponseWriter, r *http.Request) {
 	wp.Mux.ServeHTTP(w, r)
 }
 
 // AddTarget adds an additional target for load balancing
-func (wp *Webproxy) AddTarget(targetURL string) error {
+func (wp *WebProxy) AddTarget(targetURL string) error {
 	target, err := url.Parse(targetURL)
 	if err != nil {
 		return fmt.Errorf("invalid target URL: %w", err)
@@ -94,31 +94,31 @@ func (wp *Webproxy) AddTarget(targetURL string) error {
 }
 
 // SetTimeout sets the proxy timeout
-func (wp *Webproxy) SetTimeout(timeout time.Duration) *Webproxy {
+func (wp *WebProxy) SetTimeout(timeout time.Duration) *WebProxy {
 	wp.Timeout = timeout
 	return wp
 }
 
 // SetPreserveHost sets whether to preserve the original Host header
-func (wp *Webproxy) SetPreserveHost(preserve bool) *Webproxy {
+func (wp *WebProxy) SetPreserveHost(preserve bool) *WebProxy {
 	wp.PreserveHost = preserve
 	return wp
 }
 
 // SetStripPrefix sets a prefix to strip from the request path
-func (wp *Webproxy) SetStripPrefix(prefix string) *Webproxy {
+func (wp *WebProxy) SetStripPrefix(prefix string) *WebProxy {
 	wp.StripPrefix = prefix
 	return wp
 }
 
 // SetAddPrefix sets a prefix to add to the request path
-func (wp *Webproxy) SetAddPrefix(prefix string) *Webproxy {
+func (wp *WebProxy) SetAddPrefix(prefix string) *WebProxy {
 	wp.AddPrefix = prefix
 	return wp
 }
 
 // AddHeader adds a custom header to all proxied requests
-func (wp *Webproxy) AddHeader(key, value string) *Webproxy {
+func (wp *WebProxy) AddHeader(key, value string) *WebProxy {
 	wp.mu.Lock()
 	wp.CustomHeaders[key] = value
 	wp.mu.Unlock()
@@ -126,7 +126,7 @@ func (wp *Webproxy) AddHeader(key, value string) *Webproxy {
 }
 
 // RemoveHeader removes a header from all proxied requests
-func (wp *Webproxy) RemoveHeader(key string) *Webproxy {
+func (wp *WebProxy) RemoveHeader(key string) *WebProxy {
 	wp.mu.Lock()
 	wp.RemoveHeaders = append(wp.RemoveHeaders, key)
 	wp.mu.Unlock()
@@ -134,13 +134,13 @@ func (wp *Webproxy) RemoveHeader(key string) *Webproxy {
 }
 
 // SetLoadBalanceMode sets the load balancing mode
-func (wp *Webproxy) SetLoadBalanceMode(mode string) *Webproxy {
+func (wp *WebProxy) SetLoadBalanceMode(mode string) *WebProxy {
 	wp.LoadBalanceMode = mode
 	return wp
 }
 
 // getNextTarget returns the next target based on load balancing mode
-func (wp *Webproxy) getNextTarget() *url.URL {
+func (wp *WebProxy) getNextTarget() *url.URL {
 	wp.mu.Lock()
 	defer wp.mu.Unlock()
 
@@ -165,7 +165,7 @@ func (wp *Webproxy) getNextTarget() *url.URL {
 }
 
 // handleProxy handles the actual proxying
-func (wp *Webproxy) handleProxy(w http.ResponseWriter, r *http.Request) {
+func (wp *WebProxy) handleProxy(w http.ResponseWriter, r *http.Request) {
 	wp.statsMu.Lock()
 	wp.stats.TotalRequests++
 	wp.stats.LastRequestTime = time.Now()
@@ -186,7 +186,7 @@ func (wp *Webproxy) handleProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // createReverseProxy creates a reverse proxy for the given target
-func (wp *Webproxy) createReverseProxy(target *url.URL) *httputil.ReverseProxy {
+func (wp *WebProxy) createReverseProxy(target *url.URL) *httputil.ReverseProxy {
 	director := func(req *http.Request) {
 		// Preserve original URL for reference
 		originalHost := req.Host
@@ -275,7 +275,7 @@ func (wp *Webproxy) createReverseProxy(target *url.URL) *httputil.ReverseProxy {
 }
 
 // GetStats returns current proxy statistics
-func (wp *Webproxy) GetStats() ProxyStats {
+func (wp *WebProxy) GetStats() ProxyStats {
 	wp.statsMu.RLock()
 	defer wp.statsMu.RUnlock()
 	return wp.stats
