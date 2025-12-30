@@ -8,7 +8,7 @@ import (
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
 	hl1 "github.com/go-xlite/wbx/helpers"
-	"github.com/go-xlite/wbx/server/webtrail"
+	"github.com/go-xlite/wbx/servers/webtrail"
 	"github.com/go-xlite/wbx/weblite"
 )
 

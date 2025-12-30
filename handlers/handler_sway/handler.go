@@ -8,7 +8,7 @@ import (
 	comm "github.com/go-xlite/wbx/comm"
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
 	hl1 "github.com/go-xlite/wbx/helpers"
-	"github.com/go-xlite/wbx/server/websway"
+	"github.com/go-xlite/wbx/servers/websway"
 	"github.com/go-xlite/wbx/weblite"
 )
 

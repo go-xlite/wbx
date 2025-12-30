@@ -1,20 +1,20 @@
 package wbx
 
 import (
-	sa "github.com/go-xlite/wbx/handler_api"
-	sc "github.com/go-xlite/wbx/handler_cdn"
-	media "github.com/go-xlite/wbx/handler_media"
-	pxy "github.com/go-xlite/wbx/handler_proxy"
-	rth "github.com/go-xlite/wbx/handler_root"
-	sse "github.com/go-xlite/wbx/handler_sse"
-	sway "github.com/go-xlite/wbx/handler_sway"
-	ws "github.com/go-xlite/wbx/handler_ws"
+	sa "github.com/go-xlite/wbx/handlers/handler_api"
+	sc "github.com/go-xlite/wbx/handlers/handler_cdn"
+	media "github.com/go-xlite/wbx/handlers/handler_media"
+	pxy "github.com/go-xlite/wbx/handlers/handler_proxy"
+	rth "github.com/go-xlite/wbx/handlers/handler_root"
+	sse "github.com/go-xlite/wbx/handlers/handler_sse"
+	sway "github.com/go-xlite/wbx/handlers/handler_sway"
+	ws "github.com/go-xlite/wbx/handlers/handler_ws"
 	hl1 "github.com/go-xlite/wbx/helpers"
-	wc "github.com/go-xlite/wbx/server/webcast"
-	"github.com/go-xlite/wbx/server/webproxy"
-	wss "github.com/go-xlite/wbx/server/websock"
-	"github.com/go-xlite/wbx/server/webstream"
-	wt "github.com/go-xlite/wbx/server/webtrail"
+	wc "github.com/go-xlite/wbx/servers/webcast"
+	"github.com/go-xlite/wbx/servers/webproxy"
+	wss "github.com/go-xlite/wbx/servers/websock"
+	"github.com/go-xlite/wbx/servers/webstream"
+	wt "github.com/go-xlite/wbx/servers/webtrail"
 	wl "github.com/go-xlite/wbx/weblite"
 )
 
