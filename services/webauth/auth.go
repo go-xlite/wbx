@@ -6,11 +6,19 @@ import (
 	"github.com/go-xlite/wbx/comm"
 )
 
+type IWebAuthProvider interface {
+	Login(w http.ResponseWriter, r *http.Request)
+	Logout(w http.ResponseWriter, r *http.Request)
+	RefreshToken(w http.ResponseWriter, r *http.Request)
+	RegisterUser(w http.ResponseWriter, r *http.Request)
+}
+
 type WebAuth struct {
 	*comm.ServerCore
 	// Note: The base path is NOT used in actual routing, only for helper methods
 	PathBase string // Optional base path for convenience (e.g., "/api" for documentation)
 	NotFound http.HandlerFunc
+	Auth     IWebAuthProvider
 }
 
 // NewWebAuth creates a new WebAuth instance with proper routing capabilities
@@ -27,15 +35,9 @@ func (wt *WebAuth) OnRequest(w http.ResponseWriter, r *http.Request) {
 	wt.Mux.ServeHTTP(w, r)
 }
 
-// MakePath creates a full path by prepending the PathBase (if set)
-// Useful for documentation or when you want to know the full proxied path
-func (wt *WebAuth) MakePath(suffix string) string {
-	if wt.PathBase == "" {
-		return suffix
-	}
-	return wt.PathBase + suffix
-}
-
-func (wt *WebAuth) ServeData(w http.ResponseWriter, r *http.Request) {
-
+func (wt *WebAuth) Init() {
+	wt.Mux.HandleFunc("/login", wt.Auth.Login)
+	wt.Mux.HandleFunc("/logout", wt.Auth.Logout)
+	wt.Mux.HandleFunc("/refresh", wt.Auth.RefreshToken)
+	wt.Mux.HandleFunc("/register", wt.Auth.RegisterUser)
 }

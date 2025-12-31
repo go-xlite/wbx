@@ -52,7 +52,7 @@ func (as *AuthHandler) Run() {
 		hl1.Helpers.WriteNotFound(w)
 	})
 
-	server.GetRoutes().ForwardPathPrefixFn(as.PathPrefix.Get(), func(w http.ResponseWriter, r *http.Request) {
+	server.GetRoutes().ForwardPathPrefixFn("/auth", func(w http.ResponseWriter, r *http.Request) {
 		as.auth.OnRequest(w, r)
 	})
 

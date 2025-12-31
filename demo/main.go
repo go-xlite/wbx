@@ -9,6 +9,7 @@ import (
 	wbx "github.com/go-xlite/wbx"
 	osfs "github.com/go-xlite/wbx/comm/adapter_fs/os_fs"
 	server_data "github.com/go-xlite/wbx/debug/api/server_data"
+	authsvc "github.com/go-xlite/wbx/debug/auth-svc"
 	dummy_session_svc "github.com/go-xlite/wbx/debug/session-svc/dummy"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
 	client "github.com/go-xlite/wbx/demo/client"
@@ -16,6 +17,7 @@ import (
 	handlers "github.com/go-xlite/wbx/handlers"
 	webapp "github.com/go-xlite/wbx/roots/webapp"
 	servers "github.com/go-xlite/wbx/services"
+	auth "github.com/go-xlite/wbx/services/webauth"
 	"github.com/go-xlite/wbx/services/websock"
 	"github.com/go-xlite/wbx/weblite"
 )
@@ -129,6 +131,18 @@ func main() {
 	apiHandler := wbx.NewApiHandler(wbtServersApi)
 	apiHandler.SetPathPrefix("/xt23/trail")
 	apiHandler.Run()
+
+	// === WebAuth Handler ===
+	authSvc := authsvc.NewWebAuthService().
+		AddUser("admin", "pass", "Administrator").
+		AddUser("user1", "pass", "Standard User")
+
+	authServer := auth.NewWebAuth()
+	authServer.Auth = authSvc
+
+	authHandler := wbx.NewAuthHandler(authServer)
+	authHandler.SetPathPrefix("/xt23/auth")
+	authHandler.Run()
 
 	// Initialize the application with embedded files
 	clientInstance := client.NewClient()
