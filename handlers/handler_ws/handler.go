@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	wsh "github.com/go-xlite/wbx/handler/ws"
-	"github.com/go-xlite/wbx/servers/websock"
+	"github.com/go-xlite/wbx/services/websock"
 	hl1 "github.com/go-xlite/wbx/utils"
 	"github.com/go-xlite/wbx/weblite"
 )

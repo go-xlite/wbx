@@ -16,10 +16,11 @@ import (
 
 // WebLite represents a lightweight web server instance
 type WebLite struct {
-	Provider *WebLiteProvider
-	Name     string
-	mux      *mux.Router
-	Routes   *routes.Routes
+	Provider       *WebLiteProvider
+	Name           string
+	mux            *mux.Router
+	Routes         *routes.Routes
+	SessionManager *SessionManager // Add this
 
 	// Port listeners configuration
 	PortListeners []*PortListener
@@ -43,6 +44,14 @@ func NewWebLite(name string) *WebLite {
 }
 
 // Configuration methods
+
+// SetSessionManager configures session management for this server
+func (wl *WebLite) SetSessionManager(sm *SessionManager) *WebLite {
+	wl.mu.Lock()
+	defer wl.mu.Unlock()
+	wl.SessionManager = sm
+	return wl
+}
 
 // AddPortListener adds a new port listener configuration
 func (wl *WebLite) AddPortListener(config map[string]string) *WebLite {
@@ -187,6 +196,11 @@ func (wl *WebLite) startListenerServer(listener *PortListener, bindAddr, port st
 	// Apply domain validation through DomainValidator
 	if listener.DomainValidator != nil && listener.DomainValidator.IsEnabled() {
 		handler = listener.DomainValidator.Middleware(handler)
+	}
+
+	// Apply session management if configured
+	if wl.SessionManager != nil {
+		handler = wl.SessionManager.Middleware(handler)
 	}
 
 	isHTTPS := listener.IsHTTPS()

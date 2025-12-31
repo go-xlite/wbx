@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	comm "github.com/go-xlite/wbx/comm"
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/servers/websway"
+	"github.com/go-xlite/wbx/services/websway"
 	hl1 "github.com/go-xlite/wbx/utils"
 	"github.com/go-xlite/wbx/weblite"
 )
@@ -19,10 +18,8 @@ var content embed.FS
 // Features: Template rendering, asset serving, security headers
 type SwayHandler struct {
 	*handler_role.HandlerRole
-	SessionResolver  comm.SessionResolver
-	LoginPage        string
-	AuthSkippedPaths []string
-	sway             *websway.WebSway
+	LoginPage string
+	sway      *websway.WebSway
 }
 
 // NewSwayHandler creates a SwayHandler wrapper around an existing handler instance
@@ -30,16 +27,15 @@ func NewSwayHandler(sway *websway.WebSway) *SwayHandler {
 	handlerRole := handler_role.NewHandler()
 
 	return &SwayHandler{
-		sway:             sway,
-		HandlerRole:      handlerRole,
-		LoginPage:        "/login",
-		AuthSkippedPaths: []string{"/login", "/logout", "/"},
+		sway:        sway,
+		HandlerRole: handlerRole,
+		LoginPage:   "/login",
 	}
 }
 
 func (ws *SwayHandler) Run(wbl *weblite.WebLite) {
 
-	wbl.GetRoutes().ForwardPathPrefixFn(ws.PathPrefix.Suffix("/sway/p"), func(w http.ResponseWriter, r *http.Request) {
+	wbl.GetRoutes().ForwardPathPrefixFn("/sway/p", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {
 			data, _ := content.ReadFile("app-dist" + r.URL.Path)
 			hl1.Helpers.WriteJsBytes(w, data)

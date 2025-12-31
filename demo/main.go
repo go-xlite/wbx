@@ -9,13 +9,14 @@ import (
 	wbx "github.com/go-xlite/wbx"
 	osfs "github.com/go-xlite/wbx/comm/adapter_fs/os_fs"
 	server_data "github.com/go-xlite/wbx/debug/api/server_data"
+	dummy_session_svc "github.com/go-xlite/wbx/debug/session-svc/dummy"
 	debugsse "github.com/go-xlite/wbx/debug/sse"
 	client "github.com/go-xlite/wbx/demo/client"
 	clientroot "github.com/go-xlite/wbx/demo/client-root"
 	handlers "github.com/go-xlite/wbx/handlers"
 	webapp "github.com/go-xlite/wbx/roots/webapp"
-	servers "github.com/go-xlite/wbx/servers"
-	"github.com/go-xlite/wbx/servers/websock"
+	servers "github.com/go-xlite/wbx/services"
+	"github.com/go-xlite/wbx/services/websock"
 	"github.com/go-xlite/wbx/weblite"
 )
 
@@ -30,8 +31,19 @@ type HostPrefix struct {
 }
 
 func main() {
+
+	sess_svc := dummy_session_svc.NewDummySessionService()
+	// Create session manager
+	sessionMgr := weblite.NewSessionManager(sess_svc).
+		SetSkipPrefixes("/public/", "/static/", "/health").
+		SetSkipPaths("/login", "/register", "/", "/favicon.ico").
+		AddSkipPrefix("/api/public/").
+		AddSkipPrefix("/xt23/api-demo/").
+		AddSkipPrefix("/sway/", "/trail/p/", "/xlite/")
+
 	// Create weblite server using provider
 	server := weblite.Provider.Servers.New("demo")
+	server.SetSessionManager(sessionMgr)
 	server.AddPortListener(map[string]string{
 		"protocol":            "http",
 		"ports":               "8090,8091",
@@ -130,7 +142,6 @@ func main() {
 	// Create Sway handler for serving HTML applications
 	swayHandler := wbx.NewSwayHandler(sway)
 	swayHandler.SetPathPrefix("/xt23")
-	swayHandler.AuthSkippedPaths = []string{} // No auth for demo
 	swayHandler.Run(server)
 
 	clr := clientroot.NewClientRoot()

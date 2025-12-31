@@ -8,7 +8,7 @@ import (
 	"time"
 
 	handler_role "github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/servers/webcast"
+	"github.com/go-xlite/wbx/services/webcast"
 	hl1 "github.com/go-xlite/wbx/utils"
 )
 

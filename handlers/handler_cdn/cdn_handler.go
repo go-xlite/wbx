@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-xlite/wbx/comm/handler_role"
-	"github.com/go-xlite/wbx/servers/webcdn"
+	"github.com/go-xlite/wbx/services/webcdn"
 )
 
 // CdnHandler is a lightweight handler wrapper for WebCdn
