@@ -10,12 +10,15 @@ import (
 var Content embed.FS
 
 type Client struct {
-	Content *embed_fs.EmbedFS
+	AppG *embed_fs.EmbedFS
+	AppW *embed_fs.EmbedFS
 	// Application specific fields can be added here
 }
 
 func NewClient() *Client {
-	cl := &Client{Content: embed_fs.NewEmbedFS(&Content)}
-	cl.Content.SetBasePath("dist")
+	cl := &Client{AppG: embed_fs.NewEmbedFS(&Content)}
+	cl.AppG.SetBasePath("dist/app_g")
+	cl.AppW = embed_fs.NewEmbedFS(&Content)
+	cl.AppW.SetBasePath("dist/app_w")
 	return cl
 }

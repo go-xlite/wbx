@@ -1,1 +1,0 @@
-var u=window.location.pathname.split("/").filter((c)=>c),m=u.length>0?"/"+u[0]:"";document.addEventListener("DOMContentLoaded",function(){let c=document.querySelector("h1");if(c)c.style.color="#2196F3"});

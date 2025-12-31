@@ -1,4 +1,4 @@
-package weblite
+package handler_auth
 
 import (
 	"embed"
@@ -43,7 +43,7 @@ func (as *AuthHandler) Run() {
 		panic("No WebLite server available to register WebSocket handler")
 	}
 
-	server.GetRoutes().ForwardPathPrefixFn("/xlite/auth/p", func(w http.ResponseWriter, r *http.Request) {
+	server.GetRoutes().ForwardPathPrefixFn("/m/xlite/auth/p", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {
 			data, _ := content.ReadFile("app-dist" + r.URL.Path)
 			hl1.Helpers.WriteJsBytes(w, data)
@@ -52,7 +52,7 @@ func (as *AuthHandler) Run() {
 		hl1.Helpers.WriteNotFound(w)
 	})
 
-	server.GetRoutes().ForwardPathPrefixFn("/auth", func(w http.ResponseWriter, r *http.Request) {
+	server.GetRoutes().ForwardPathPrefixFn("/g/xt23/auth", func(w http.ResponseWriter, r *http.Request) {
 		as.auth.OnRequest(w, r)
 	})
 

@@ -15,6 +15,7 @@ import (
 	client "github.com/go-xlite/wbx/demo/client"
 	clientroot "github.com/go-xlite/wbx/demo/client-root"
 	handlers "github.com/go-xlite/wbx/handlers"
+	handler_auth "github.com/go-xlite/wbx/handlers/handler_auth"
 	webapp "github.com/go-xlite/wbx/roots/webapp"
 	servers "github.com/go-xlite/wbx/services"
 	auth "github.com/go-xlite/wbx/services/webauth"
@@ -38,10 +39,10 @@ func main() {
 	// Create session manager
 	sessionMgr := weblite.NewSessionManager(sess_svc).
 		SetSkipPrefixes("/public/", "/static/", "/health").
-		SetSkipPaths("/login", "/register", "/", "/favicon.ico").
+		SetSkipPaths("/login", "/register", "/", "/favicon.ico", "/w/xt23/site.webmanifest").
 		AddSkipPrefix("/api/public/").
-		AddSkipPrefix("/xt23/api-demo/").
-		AddSkipPrefix("/sway/", "/trail/p/", "/xlite/")
+		AddSkipPrefix("/xt23/auth/", "/xt23/login", "/auth/"). // Auth endpoints must be accessible without session
+		AddSkipPrefix("/m/", "/g/")
 
 	// Create weblite server using provider
 	server := weblite.Provider.Servers.New("demo")
@@ -59,6 +60,7 @@ func main() {
 		"ssl_cert_path":   "../../certs/cert",
 		"ssl_key_path":    "../../certs/priv",
 		"domains_allowed": "localhost,pong.gtn.one",
+		"enable_http3":    "true",
 	})
 
 	// === Server-Sent Events (SSE) ===
@@ -66,7 +68,7 @@ func main() {
 	sseServer := servers.NewWebCast()
 	// Create SSE handler
 	sseHandler := handlers.NewSSEHandler(sseServer)
-	sseHandler.SetPathPrefix("/xt23/sse")
+	sseHandler.SetPathPrefix("/w/xt23/sse")
 	server.GetRoutes().HandlePathPrefixFn(sseHandler.PathPrefix.Get(), sseServer.OnRequest)
 	sseHandler.Init()
 	// Start dummy SSE event streamer
@@ -81,20 +83,20 @@ func main() {
 	// Create webstream server
 	streamServer := servers.NewWebStream(videoFsAdapter)
 	mediaHandler := handlers.NewMediaHandler(streamServer)
-	mediaHandler.SetPathPrefix("/xt23/stream")
+	mediaHandler.SetPathPrefix("/s/xt23/stream")
 	server.GetRoutes().ForwardPathPrefixFn(mediaHandler.PathPrefix.Get(), mediaHandler.HandleMedia())
 
 	// === Webproxy (Reverse Proxy) ===
 	// Create webproxy server pointing to external service
 	proxyServer, _ := servers.NewWebProxy("https://file-drop.gtn.one:8080/xt21/")
 	proxyHandler := handlers.NewProxyHandler(proxyServer)
-	proxyHandler.SetPathPrefix("/xt23/proxy")
+	proxyHandler.SetPathPrefix("/s/xt23/proxy")
 	server.GetRoutes().HandlePathPrefixFn(proxyHandler.PathPrefix.Get(), proxyHandler.HandleProxy())
 
 	// === WebSocket Handler ===
 	wsServer := servers.NewWebSock()
 	wsHandler := handlers.NewWsHandler(wsServer, "demo-ws")
-	wsHandler.SetPathPrefix("/xt23/ws")
+	wsHandler.SetPathPrefix("/s/xt23/ws")
 
 	wsServer.OnMessage(func(msg *websock.WsMessage) {
 		log.Printf("[WebSocket] Message from %s (%s, session: %s): %s",
@@ -129,39 +131,48 @@ func main() {
 	wbtServersApi.GetRoutes().HandlePathFn("/servers/a/filters", serversData.HandleFiltersRequest)
 
 	apiHandler := wbx.NewApiHandler(wbtServersApi)
-	apiHandler.SetPathPrefix("/xt23/trail")
+	apiHandler.SetPathPrefix("/a/xt23/trail")
 	apiHandler.Run()
 
 	// === WebAuth Handler ===
 	authSvc := authsvc.NewWebAuthService().
+		SetSessionManager(sessionMgr).
 		AddUser("admin", "pass", "Administrator").
 		AddUser("user1", "pass", "Standard User")
 
 	authServer := auth.NewWebAuth()
 	authServer.Auth = authSvc
+	authServer.Init()
 
-	authHandler := wbx.NewAuthHandler(authServer)
-	authHandler.SetPathPrefix("/xt23/auth")
+	authHandler := handler_auth.NewAuthHandler(authServer)
+	authHandler.SetPathPrefix("/g/xt23/auth")
 	authHandler.Run()
 
 	// Initialize the application with embedded files
 	clientInstance := client.NewClient()
 
 	// == Sway Handler Setup ===
-	sway := servers.NewWebSway()
-	sway.FsProvider = clientInstance.Content
-	sway.SecurityHeaders = true
-	sway.VirtualDirSegment = "p" // Use /p/ for virtual directory
+	swayW := servers.NewWebSway()
+	swayW.FsProvider = clientInstance.AppW
 
 	// Create Sway handler for serving HTML applications
-	swayHandler := wbx.NewSwayHandler(sway)
-	swayHandler.SetPathPrefix("/xt23")
-	swayHandler.Run(server)
+	swayHandlerW := wbx.NewSwayHandler(swayW)
+	swayHandlerW.SetPathPrefix("/w/xt23")
+	swayHandlerW.Run(server)
+
+	// == Sway Handler Setup ===
+	swayG := servers.NewWebSway()
+	swayG.FsProvider = clientInstance.AppG
+
+	// Create Sway handler for serving login applications
+	swayHandlerG := wbx.NewSwayHandler(swayG)
+	swayHandlerG.SetPathPrefix("/g/xt23")
+	swayHandlerG.Run(server)
 
 	clr := clientroot.NewClientRoot()
 	app := webapp.NewWebApp()
 	app.Fs = clr.Content
-	app.DefaultHome = "/xt23/home"
+	app.DefaultHome = "/w/xt23/home"
 	server.GetRoutes().HandlePathPrefixFn("/", app.HandleRequest)
 
 	go func() {

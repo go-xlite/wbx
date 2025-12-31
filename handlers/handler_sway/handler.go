@@ -35,7 +35,7 @@ func NewSwayHandler(sway *websway.WebSway) *SwayHandler {
 
 func (ws *SwayHandler) Run(wbl *weblite.WebLite) {
 
-	wbl.GetRoutes().ForwardPathPrefixFn("/sway/p", func(w http.ResponseWriter, r *http.Request) {
+	wbl.GetRoutes().ForwardPathPrefixFn("/m/xlite/sway/p", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {
 			data, _ := content.ReadFile("app-dist" + r.URL.Path)
 			hl1.Helpers.WriteJsBytes(w, data)

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Streaming Test - WBX Demo</title>
+    <embedded-js></embedded-js>
+    <embedded-css></embedded-css>
+</head>
+<body>
+    <nav>
+        <a href="/">🏠 Home</a>
+        <a href="__PREFIX__/home/">📄 Pages</a>
+        <a href="__PREFIX__/ws-test/">🔌 WebSocket Test</a>
+        <a href="__PREFIX__/sse-test/">📡 SSE Test</a>
+        <a href="__PREFIX__/stream-test/">🎬 Stream Test</a>
+    </nav>
+
+    <h1>🎬 Media Streaming Test Console</h1>
+    <p>Test video and audio streaming with range request support.</p>
+
+    <div class="section">
+        <h2>📹 Video Player</h2>
+        <div class="player-container">
+            <video id="videoPlayer" controls>
+                <source id="videoSource" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="duration">00:00</div>
+                <div class="stat-label">Duration</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="currentTime">00:00</div>
+                <div class="stat-label">Current Time</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="buffered">0%</div>
+                <div class="stat-label">Buffered</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="playBtn" class="success">▶️ Play</button>
+            <button id="pauseBtn" class="danger">⏸️ Pause</button>
+            <button id="rewindBtn">⏪ -10s</button>
+            <button id="forwardBtn">⏩ +10s</button>
+            <button id="muteBtn">🔇 Mute</button>
+        </div>
+
+        <h3>📋 Event Log</h3>
+        <div id="messages"></div>
+    </div>
+
+    <div class="section">
+        <h2>ℹ️ Configuration</h2>
+        <ul class="info-list">
+            <li><strong>Stream Endpoint:</strong> <code id="streamEndpoint"></code></li>
+            <li><strong>PathPrefix:</strong> <code id="config-prefix"></code></li>
+            <li><strong>Virtual Directory:</strong> <code>/p/</code></li>
+            <li><strong>Current Page:</strong> <code>dist/stream-test/index.html</code></li>
+            <li><strong>Range Requests:</strong> <code>Enabled</code></li>
+            <li><strong>Video File:</strong> <code>sharko_video.mp4</code></li>
+        </ul>
+    </div>
+
+    <script>
+        // Set configuration display values
+        (function () {
+            const prefix = window.PATH_PREFIX;
+            const protocol = window.location.protocol;
+            document.getElementById('streamEndpoint').textContent = `${protocol}//${window.location.host}${prefix}/stream/sharko_video.mp4`;
+            document.getElementById('config-prefix').textContent = prefix || '(none)';
+        })();
+    </script>
+    <script type="module">
+        // Load app.js with dynamic prefix
+        import(`${window.PATH_PREFIX}/stream-test/p/app.js`);
+    </script>
+</body>
+</html>

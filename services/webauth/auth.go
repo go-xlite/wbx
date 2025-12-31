@@ -11,6 +11,7 @@ type IWebAuthProvider interface {
 	Logout(w http.ResponseWriter, r *http.Request)
 	RefreshToken(w http.ResponseWriter, r *http.Request)
 	RegisterUser(w http.ResponseWriter, r *http.Request)
+	GetCurrentUser(w http.ResponseWriter, r *http.Request)
 }
 
 type WebAuth struct {
@@ -40,4 +41,5 @@ func (wt *WebAuth) Init() {
 	wt.Mux.HandleFunc("/logout", wt.Auth.Logout)
 	wt.Mux.HandleFunc("/refresh", wt.Auth.RefreshToken)
 	wt.Mux.HandleFunc("/register", wt.Auth.RegisterUser)
+	wt.Mux.HandleFunc("/me", wt.Auth.GetCurrentUser)
 }

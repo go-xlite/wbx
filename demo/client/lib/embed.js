@@ -9,6 +9,6 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 }, { once: true });
  const segments = window.location.pathname.split('/').filter(s => s);
-    window.PATH_PREFIX = segments.length > 0 ? '/' + segments[0] : '';
+    window.PATH_PREFIX = segments.length > 0 ? '/' + segments[0] + '/' + segments[1] : '';
 })()
 

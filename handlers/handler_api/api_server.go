@@ -43,7 +43,7 @@ func (as *ApiHandler) Run() {
 		panic("No WebLite server available to register WebSocket handler")
 	}
 
-	server.GetRoutes().ForwardPathPrefixFn("/trail/p", func(w http.ResponseWriter, r *http.Request) {
+	server.GetRoutes().ForwardPathPrefixFn("/m/xlite/trail/p", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, ".js") {
 			data, _ := content.ReadFile("app-dist" + r.URL.Path)
 			hl1.Helpers.WriteJsBytes(w, data)

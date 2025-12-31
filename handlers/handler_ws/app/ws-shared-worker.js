@@ -158,7 +158,8 @@ function connectWebSocket(connId) {
     
     const protocol = self.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = self.location.host;
-    const endpoint = self.location.pathname.split('/').slice(0, -2).join('/') + "/connect";
+    //const endpoint = self.location.pathname.split('/').slice(0, -2).join('/') + "/connect";
+    const endpoint = new URL(self.location.href).searchParams.get('endpoint') || '/ws/connect';
     
 
     const url = `${protocol}//${host}${endpoint}?connid=${connectionId}`;

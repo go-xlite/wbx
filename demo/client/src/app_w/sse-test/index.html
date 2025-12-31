@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSE Test - WBX Demo</title>
+    <embedded-js></embedded-js>
+    <embedded-css></embedded-css>
+</head>
+<body>
+    <nav>
+        <a href="/">🏠 Home</a>
+        <a href="__PREFIX__/home/">📄 Pages</a>
+        <a href="__PREFIX__/ws-test/">🔌 WebSocket Test</a>
+        <a href="__PREFIX__/sse-test/">📡 SSE Test</a>
+    </nav>
+
+    <h1>📡 Server-Sent Events (SSE) Test Console</h1>
+    <p>Test and monitor SSE connections in real-time with comprehensive debugging tools.</p>
+
+    <div class="section">
+        <h2>📡 Connection Status</h2>
+        <div id="sseStatus" class="sse-status disconnected">● Disconnected</div>
+        
+        <div class="stats">
+            <div class="stat-box">
+                <div class="stat-value" id="receivedCount">0</div>
+                <div class="stat-label">Messages Received</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="uptime">00:00:00</div>
+                <div class="stat-label">Connection Uptime</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value" id="reconnects">0</div>
+                <div class="stat-label">Reconnection Attempts</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="connect()" id="connectBtn" class="success">📡 Connect</button>
+            <button onclick="disconnect()" id="disconnectBtn" class="danger" disabled>❌ Disconnect</button>
+            <button onclick="clearMessages()">🗑️ Clear Log</button>
+        </div>
+
+        <h3>📋 Message Log</h3>
+        <div id="messages"></div>
+    </div>
+
+    <div class="section">
+        <h2>ℹ️ Configuration</h2>
+        <ul class="info-list">
+            <li><strong>SSE Endpoint:</strong> <code id="sseEndpoint"></code></li>
+            <li><strong>PathPrefix:</strong> <code id="config-prefix"></code></li>
+            <li><strong>Virtual Directory:</strong> <code>/p/</code></li>
+            <li><strong>Current Page:</strong> <code>dist/sse-test/index.html</code></li>
+            <li><strong>Auto-reconnect:</strong> <code>Enabled (5s delay)</code></li>
+        </ul>
+    </div>
+
+    <script>
+        // Set configuration display values
+        (function () {
+            const prefix = window.PATH_PREFIX;
+            const protocol = window.location.protocol;
+            document.getElementById('sseEndpoint').textContent = `${protocol}//${window.location.host}${prefix}/sse/stream`;
+            document.getElementById('config-prefix').textContent = prefix || '(none)';
+        })();
+    </script>
+    <script type="module">
+        // Load app.js with dynamic prefix
+        await import(`/m/xlite/sway/p/sway-core.js`);
+        import(`${window.PATH_PREFIX}/sse-test/p/app.js`);
+    </script>
+</body>
+</html>

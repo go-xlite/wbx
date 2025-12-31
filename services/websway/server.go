@@ -207,6 +207,7 @@ func (wt *WebSway) ApplyCacheHeaders(w http.ResponseWriter, requestPath string) 
 func (wt *WebSway) ServeFile(w http.ResponseWriter, r *http.Request) {
 	// Read file from filesystem provider
 
+	println("url", r.URL.Path)
 	storagePath, err := wt.ExtractStoragePath(r.URL.Path, "/", wt.PathBase)
 	if err != nil {
 		wt.NotFound(w, r)
